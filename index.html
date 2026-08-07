@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bảng điều khiển dự án</title>
+
+  <!-- ============================================================
+       FONTS
+       ============================================================ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- ============================================================
+       CSS QUA CDN
+       ============================================================ -->
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <!-- DataTables (theme Bootstrap 5) -->
+  <link href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+
+  <!-- CSS riêng của dự án -->
+  <link href="style.css" rel="stylesheet" />
+</head>
+
+<body>
+
+  <!-- ============================================================
+       PHẦN A — MÀN HÌNH ĐĂNG NHẬP (mặc định khi chưa có phiên)
+       ============================================================ -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="auth-mark">PM</span>
+        <div>
+          <h1 class="auth-title">Bảng điều khiển dự án</h1>
+          <p class="auth-sub">Theo dõi tiến độ, người phụ trách và bước tiếp theo.</p>
+        </div>
+      </div>
+
+      <div id="configWarning" class="config-warning d-none">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>Chưa có khóa kết nối. Điền <code>SUPABASE_URL</code> và <code>SUPABASE_ANON_KEY</code> ở đầu file <code>app.js</code> rồi tải lại trang.</span>
+      </div>
+
+      <form id="loginForm" class="auth-form" autocomplete="on">
+        <div class="field">
+          <label for="loginEmail" class="form-label">Email</label>
+          <input type="email" class="form-control" id="loginEmail" placeholder="ten@congty.com" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword" class="form-label">Mật khẩu</label>
+          <div class="pw-wrap">
+            <input type="password" class="form-control" id="loginPassword" placeholder="••••••••" required />
+            <button class="pw-toggle" type="button" id="togglePw" aria-label="Hiện mật khẩu">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="loginError" class="auth-error d-none"></div>
+
+        <button class="btn btn-brand w-100" type="submit" id="loginBtn">
+          <span class="btn-label">Đăng nhập</span>
+          <span class="spinner-border spinner-border-sm d-none" id="loginSpinner"></span>
+        </button>
+      </form>
+
+      <p class="auth-foot">Tài khoản do quản trị viên tạo trong Supabase → Authentication → Users.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PHẦN B — MÀN HÌNH DASHBOARD (hiện sau khi đăng nhập)
+       ============================================================ -->
+  <div id="appScreen" class="d-none">
+
+    <!-- ---------- Thanh điều hướng ---------- -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark">PM</span>
+          <span class="brand-name">Bảng điều khiển dự án</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-brand btn-sm" id="btnAddProject">
+            <i class="bi bi-plus-lg"></i> Thêm dự án mới
+          </button>
+          <div class="user-chip" id="userChip" title="Tài khoản đang đăng nhập">
+            <i class="bi bi-person-circle"></i>
+            <span id="userEmail">—</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnLogout">
+            <i class="bi bi-box-arrow-right"></i> Đăng xuất
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- ==================================================
+           KHU VỰC 1 — THANH CÔNG CỤ & BỘ LỌC TỔNG
+           ================================================== -->
+      <section class="zone" id="zoneFilters">
+        <div class="zone-head">
+          <div>
+            <span class="eyebrow">Khu vực 1</span>
+            <h2 class="zone-title">Bộ lọc tổng</h2>
+          </div>
+          <span class="zone-note" id="filterSummary">Đang xem toàn bộ dự án</span>
+        </div>
+
+        <!-- Thẻ số liệu nhanh -->
+        <div class="kpi-row">
+          <div class="kpi">
+            <span class="kpi-label">Tổng đầu mục</span>
+            <span class="kpi-value" id="kpiTotal">0</span>
+          </div>
+          <div class="kpi kpi-open">
+            <span class="kpi-label">Open</span>
+            <span class="kpi-value" id="kpiOpen">0</span>
+          </div>
+          <div class="kpi kpi-progress">
+            <span class="kpi-label">In Progress</span>
+            <span class="kpi-value" id="kpiProgress">0</span>
+          </div>
+          <div class="kpi kpi-done">
+            <span class="kpi-label">Done</span>
+            <span class="kpi-value" id="kpiDone">0</span>
+          </div>
+          <div class="kpi kpi-late">
+            <span class="kpi-label">Trễ hạn</span>
+            <span class="kpi-value" id="kpiLate">0</span>
+          </div>
+        </div>
+
+        <!-- Bộ lọc -->
+        <div class="filter-bar">
+          <div class="filter-item">
+            <label class="form-label" for="filterPic">Người phụ trách (PIC)</label>
+            <select class="form-select" id="filterPic">
+              <option value="ALL">Tất cả</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label class="form-label" for="filterStatus">Trạng thái</label>
+            <select class="form-select" id="filterStatus">
+              <option value="ALL">Tất cả</option>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Done">Done</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label class="form-label" for="filterFrom">Timeline từ ngày</label>
+            <input type="date" class="form-control" id="filterFrom" />
+          </div>
+
+          <div class="filter-item">
+            <label class="form-label" for="filterTo">Đến ngày</label>
+            <input type="date" class="form-control" id="filterTo" />
+          </div>
+
+          <div class="filter-item filter-actions">
+            <button class="btn btn-ghost w-100" id="btnClearFilters">
+              <i class="bi bi-arrow-counterclockwise"></i> Xóa bộ lọc
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================
+           KHU VỰC 2 — BIỂU ĐỒ TRỰC QUAN (bấm để lọc)
+           ================================================== -->
+      <section class="zone" id="zoneCharts">
+        <div class="zone-head">
+          <div>
+            <span class="eyebrow">Khu vực 2</span>
+            <h2 class="zone-title">Biểu đồ trực quan</h2>
+          </div>
+          <span class="zone-note"><i class="bi bi-hand-index-thumb"></i> Bấm vào biểu đồ để lọc nhanh xuống bảng</span>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <h3 class="chart-title">Tỷ lệ theo trạng thái</h3>
+            <div class="chart-box">
+              <canvas id="statusChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 class="chart-title">Số đầu mục theo người phụ trách</h3>
+            <div class="chart-box">
+              <canvas id="picChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================
+           KHU VỰC 3 — BẢNG DỮ LIỆU CHI TIẾT
+           ================================================== -->
+      <section class="zone" id="zoneTable">
+        <div class="zone-head">
+          <div>
+            <span class="eyebrow">Khu vực 3</span>
+            <h2 class="zone-title">Danh sách dự án</h2>
+          </div>
+          <span class="zone-note" id="tableCount">0 đầu mục</span>
+        </div>
+
+        <div class="table-wrap">
+          <table id="projectsTable" class="table align-middle w-100">
+            <thead>
+              <tr>
+                <th>Đầu mục</th>
+                <th>PIC</th>
+                <th>Timeline</th>
+                <th>Ưu tiên</th>
+                <th>Trạng thái</th>
+                <th>Bước tiếp theo</th>
+                <th class="no-sort">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       MODAL — THÊM / SỬA DỰ ÁN
+       ============================================================ -->
+  <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="projectModalTitle">Thêm dự án mới</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        </div>
+
+        <form id="projectForm">
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="fTitle">Tên đầu mục <span class="req">*</span></label>
+                <input type="text" class="form-control" id="fTitle" required placeholder="VD: Chuẩn hóa quy trình đối soát" />
+              </div>
+
+              <div class="col-12">
+                <label class="form-label" for="fDescription">Mô tả</label>
+                <textarea class="form-control" id="fDescription" rows="3" placeholder="Bối cảnh, phạm vi, kết quả mong đợi…"></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="fStart">Ngày bắt đầu</label>
+                <input type="date" class="form-control" id="fStart" />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="fEnd">Ngày kết thúc</label>
+                <input type="date" class="form-control" id="fEnd" />
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="fPic">Người phụ trách <span class="req">*</span></label>
+                <input type="text" class="form-control" id="fPic" required list="picSuggestions" placeholder="VD: Phuong Van" />
+                <datalist id="picSuggestions"></datalist>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="fPriority">Mức độ ưu tiên</label>
+                <select class="form-select" id="fPriority">
+                  <option value="High">High</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="fStatus">Trạng thái</label>
+                <!-- Mặc định là Open theo yêu cầu -->
+                <select class="form-select" id="fStatus">
+                  <option value="Open" selected>Open</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label" for="fNextSteps">Bước tiếp theo</label>
+                <textarea class="form-control" id="fNextSteps" rows="2" placeholder="Việc cần làm ngay sau đó…"></textarea>
+              </div>
+            </div>
+
+            <div id="formError" class="auth-error mt-3 d-none"></div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-brand" id="btnSaveProject">
+              <span class="btn-label">Lưu dự án</span>
+              <span class="spinner-border spinner-border-sm d-none" id="saveSpinner"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Khay thông báo -->
+  <div class="toast-tray" id="toastTray"></div>
+
+  <!-- ============================================================
+       JS QUA CDN — thứ tự nạp rất quan trọng
+       (jQuery -> DataTables -> Bootstrap -> Chart.js -> Supabase -> app.js)
+       Tất cả đều là script cổ điển, KHÔNG dùng type="module"
+       nên mở thẳng file index.html bằng trình duyệt vẫn chạy.
+       ============================================================ -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <script src="app.js"></script>
+</body>
+</html>
