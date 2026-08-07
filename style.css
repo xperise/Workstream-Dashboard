@@ -94,30 +94,77 @@ body {
 
 /* ==========================================================================
    PHẦN A — MÀN HÌNH ĐĂNG NHẬP
+   Nền gradient lấy hai màu quỹ đạo trong logo Xperise: teal và tím.
    ========================================================================== */
 .auth-screen {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow: hidden;
   background:
-    radial-gradient(1100px 520px at 12% -10%, #D7E7E6 0%, transparent 62%),
-    radial-gradient(900px 480px at 100% 110%, #DDE3EE 0%, transparent 60%),
-    var(--canvas);
+    radial-gradient(940px 660px at 6% -6%,   #C6EBE2 0%, rgba(198, 235, 226, 0) 62%),
+    radial-gradient(880px 640px at 98% 104%, #DED2FA 0%, rgba(222, 210, 250, 0) 60%),
+    radial-gradient(720px 520px at 78% 8%,   #E8F4F1 0%, rgba(232, 244, 241, 0) 58%),
+    linear-gradient(155deg, #FAFCFB 0%, #EDF2F7 52%, #F4EFFC 100%);
 }
+
+/* Vệt sáng mảnh chạy chéo, gợi lại nét quỹ đạo của logo */
+.auth-screen::after {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background: linear-gradient(118deg, transparent 44%, rgba(255, 255, 255, .55) 50%, transparent 56%);
+  pointer-events: none;
+}
+
+/* Logo neo ở góc trái trên cùng */
+.auth-logo {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  z-index: 2;
+  display: inline-block;
+  line-height: 0;
+  opacity: .92;
+  transition: opacity .18s ease;
+}
+.auth-logo:hover { opacity: 1; }
+.auth-logo img { height: 30px; width: auto; display: block; }
 
 .auth-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 430px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, .9);
   border-radius: 18px;
-  box-shadow: var(--shadow-lg);
-  padding: 32px;
+  box-shadow: 0 30px 70px -30px rgba(16, 40, 34, .35), 0 2px 6px rgba(16, 40, 34, .05);
+  padding: 34px 32px;
 }
 
-.auth-brand { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 26px; }
+/* Tiêu đề: gạch nhấn teal ngắn phía trên thay cho ô "PM" cũ */
+.auth-brand { margin-bottom: 26px; }
+.auth-brand::before {
+  content: "";
+  display: block;
+  width: 32px; height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--brand) 0%, #7C4DE0 100%);
+  margin-bottom: 14px;
+}
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
 
 .auth-mark, .brand-mark {
   background: var(--brand);
@@ -129,9 +176,6 @@ body {
   flex: 0 0 auto;
 }
 .auth-mark { width: 42px; height: 42px; font-size: 15px; }
-
-.auth-title { font-size: 19px; font-weight: 700; margin: 2px 0 4px; letter-spacing: -.01em; }
-.auth-sub   { font-size: 13px; color: var(--ink-3); margin: 0; line-height: 1.5; }
 
 .auth-form .field { margin-bottom: 16px; }
 
@@ -190,7 +234,6 @@ body {
 }
 .config-warning code { color: #7A5310; background: rgba(122, 83, 16, .1); padding: 0 4px; border-radius: 4px; }
 
-.auth-foot { font-size: 12px; color: var(--ink-3); text-align: center; margin: 18px 0 0; }
 
 /* ==========================================================================
    THANH ĐIỀU HƯỚNG
@@ -206,8 +249,9 @@ body {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   flex-wrap: wrap;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-mark { width: 32px; height: 32px; font-size: 12px; border-radius: 8px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-logo { height: 24px; width: auto; display: block; }
+.brand-divider { width: 1px; height: 20px; background: var(--line); flex: 0 0 auto; }
 .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
 
 .topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -461,8 +505,11 @@ table.dataTable th.no-sort { pointer-events: none; }
   .filter-bar { grid-template-columns: 1fr; }
   .kpi-row    { grid-template-columns: repeat(2, 1fr); }
   .topbar-inner { padding: 10px 14px; }
-  .brand-name { display: none; }
-  .auth-card { padding: 24px; }
+  .brand-name, .brand-divider { display: none; }
+  .auth-card { padding: 26px 22px; }
+  .auth-logo { top: 20px; left: 20px; }
+  .auth-logo img { height: 24px; }
+  .auth-title { font-size: 20px; }
 }
 
 /* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */

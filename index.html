@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bảng điều khiển dự án</title>
+  <title>Workstream Dashboard — Xperise</title>
 
   <!-- ============================================================
        FONTS
@@ -32,13 +32,15 @@
        PHẦN A — MÀN HÌNH ĐĂNG NHẬP (mặc định khi chưa có phiên)
        ============================================================ -->
   <div id="authScreen" class="auth-screen">
+
+    <!-- Logo Xperise neo ở góc trái trên cùng -->
+    <a class="auth-logo" href="#" aria-label="Xperise">
+      <img src="xperise-logo.png" alt="Xperise" />
+    </a>
+
     <div class="auth-card">
       <div class="auth-brand">
-        <span class="auth-mark">PM</span>
-        <div>
-          <h1 class="auth-title">Bảng điều khiển dự án</h1>
-          <p class="auth-sub">Theo dõi tiến độ, người phụ trách và bước tiếp theo.</p>
-        </div>
+        <h1 class="auth-title">Workstream Dashboard</h1>
       </div>
 
       <div id="configWarning" class="config-warning d-none">
@@ -68,8 +70,6 @@
           <span class="spinner-border spinner-border-sm d-none" id="loginSpinner"></span>
         </button>
       </form>
-
-      <p class="auth-foot">Tài khoản do quản trị viên tạo trong Supabase → Authentication → Users.</p>
     </div>
   </div>
 
@@ -82,8 +82,9 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <span class="brand-mark">PM</span>
-          <span class="brand-name">Bảng điều khiển dự án</span>
+          <img class="brand-logo" src="xperise-logo.png" alt="Xperise" />
+          <span class="brand-divider"></span>
+          <span class="brand-name">Workstream Dashboard</span>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-brand btn-sm" id="btnAddProject">
