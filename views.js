@@ -867,24 +867,6 @@ function renderSystem() {
   el("qualityGrid").querySelectorAll("[data-open]").forEach(x => x.addEventListener("click", () => focusItem(x.dataset.open)));
   el("qualityFoot").textContent = t("qualityFoot")(d.itemsNeedingData);
 
-  const C = t("conn");
-  const conns = [
-    { name: C.stream, state: S.hasStream ? "on" : "off", on: C.streamOn, off: C.streamOff },
-    { name: C.dep,    state: S.hasBlockedBy ? "on" : "off", on: C.depOn, off: C.depOff },
-    { name: C.prog,   state: S.hasProgress ? "on" : "off", on: C.progOn, off: C.progOff },
-    { name: C.live,   state: S.realtime ? "on" : (S.channelOpen ? "pending" : "off"),
-      on: C.liveOn, pending: C.livePending, off: C.liveOff }
-  ];
-  const dot = { on: "var(--stable)", pending: "var(--high)", off: "var(--line)" };
-  el("connGrid").innerHTML = conns.map(c => `
-    <div class="conn-card">
-      <span class="conn-dot" style="background:${dot[c.state]}"></span>
-      <div class="conn-name">${esc(c.name)}</div>
-      <div class="conn-state">${esc(c[c.state])}</div>
-    </div>`).join("");
-  el("connNote").textContent = conns.every(c => c.state === "on") ? t("connAllOn") : t("connSetup");
-  el("sqlBlock").textContent = SQL_CONNECTED;
-
   /* Bảng công thức dựng thẳng từ object WRI — kể cả trần điểm cũng được tính
      ra, nên sửa bảng điểm là phần giải thích tự khớp lại. */
   el("formulaIntro").textContent = t("formulaIntro")(4, WRI.cap);

@@ -922,10 +922,6 @@ function bindEvents() {
   el("btnDelete").addEventListener("click", deleteItem);
   el("btnNewStream").addEventListener("click", () => createStream());
 
-  el("btnCopySql").addEventListener("click", () => {
-    navigator.clipboard.writeText(SQL_CONNECTED)
-      .then(() => toast(t("sqlCopied"), "ok"), () => toast(t("sqlCopyFail"), "err"));
-  });
 
   // Chọn "tạo luồng mới" ngay trong form
   el("mStream").addEventListener("change", e => {
