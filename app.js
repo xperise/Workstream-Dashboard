@@ -510,7 +510,7 @@ function openModal(id) {
   el("mStream").disabled = !S.hasStream;
   el("streamHint").textContent = S.hasStream ? t("streamHintOn") : t("streamHintOff");
 
-  ensureStreamManageUI();
+  try { ensureStreamManageUI(); } catch (e) { console.warn("Không dựng được khu quản lý luồng:", e); }
   renderWriPreview();
 
   // MỘT bản popup duy nhất cho cả vòng đời trang. Tạo mới mỗi lần mở sẽ để lại
@@ -547,9 +547,14 @@ function loadStreamPrefs() {
   } catch (e) { /* dữ liệu hỏng thì dùng mặc định */ }
 }
 
-/** Dựng khu quản lý luồng ngay dưới ô chọn, chỉ tạo một lần. */
+/** Dựng khu quản lý luồng ngay dưới ô chọn, chỉ tạo một lần.
+    Bám vào ô chọn thay vì một id cố định — nếu khung HTML đổi, chỗ này vẫn chạy
+    thay vì làm hỏng cả việc mở popup. */
 function ensureStreamManageUI() {
   if (el("streamManage")) return;
+  const select = el("mStream");
+  const host = select && select.parentElement;
+  if (!host) return;                       // không có chỗ gắn thì bỏ qua, không làm vỡ popup
 
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "link-btn"; btn.id = "btnManageStreams";
@@ -558,8 +563,8 @@ function ensureStreamManageUI() {
   const box = document.createElement("div");
   box.id = "streamManage"; box.className = "stream-manage d-none";
 
-  el("streamField").appendChild(btn);
-  el("streamField").appendChild(box);
+  host.appendChild(btn);
+  host.appendChild(box);
 
   btn.addEventListener("click", () => {
     box.classList.toggle("d-none");
