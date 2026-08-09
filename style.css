@@ -462,29 +462,44 @@ div.dt-container .dt-paging .dt-paging-button { font-size: 12.5px; border-radius
    MODAL
    Popup dài hơn màn hình thì cuộn BÊN TRONG phần thân, không đẩy tràn trang.
    ========================================================================== */
-/* Chiều cao popup tính thẳng theo màn hình, không phụ thuộc biến của Bootstrap.
-   Trước đây lề tự đặt (1.75rem) lệch với biến --bs-modal-margin (0.5rem) nên
-   Bootstrap tính chiều cao dư ra, đẩy nút Lưu tụt xuống dưới màn hình.
-   100dvh để trên điện thoại không bị thanh địa chỉ che mất phần chân. */
+/* NGUYÊN NHÂN THẬT của lỗi không cuộn được popup:
+   khung HTML là  .modal-content > .modal-header + <form> > .modal-body + .modal-footer
+   Cơ chế cuộn của Bootstrap giả định .modal-body là con trực tiếp của .modal-content.
+   Thẻ <form> chen vào giữa làm đứt chuỗi co giãn: form phình theo nội dung, vượt quá
+   chiều cao popup, rồi bị overflow:hidden cắt cụt — nên không có thanh cuộn nào cả.
+   Cách sửa: cho chính thẻ <form> thành một cột co giãn để nối lại chuỗi.
+   Dùng #itemModal (chọn theo id) để chắc chắn đè được mọi quy tắc của Bootstrap. */
 .modal { overflow-y: auto; }
-.modal-dialog { margin: 1.75rem auto; }
-.modal-dialog-centered { min-height: calc(100% - 3.5rem); }
 
-.modal-dialog-scrollable .modal-content {
-  max-height: calc(100vh - 3.5rem);
-  max-height: calc(100dvh - 3.5rem);
+#itemModal .modal-dialog {
+  margin: 1.5rem auto;
+  height: calc(100vh - 3rem);
+  height: calc(100dvh - 3rem);     /* dvh: điện thoại không bị thanh địa chỉ che */
+  display: flex;
+  align-items: center;
+}
+#itemModal .modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
   overflow: hidden;
 }
-/* Chỉ phần ruột cuộn — tiêu đề và hàng nút luôn nhìn thấy. */
-.modal-dialog-scrollable .modal-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
-.modal-header, .modal-footer { flex: 0 0 auto; }
+/* Mắt xích bị thiếu — không có dòng này thì popup vẫn bị cắt cụt. */
+#itemModal #itemForm {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Chỉ phần ruột cuộn; tiêu đề và hàng nút Lưu luôn nhìn thấy. */
+#itemModal .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#itemModal .modal-header, #itemModal .modal-footer { flex: 0 0 auto; }
 
 @media (max-width: 760px) {
-  .modal-dialog { margin: .75rem; }
-  .modal-dialog-centered { min-height: calc(100% - 1.5rem); }
-  .modal-dialog-scrollable .modal-content {
-    max-height: calc(100vh - 1.5rem);
-    max-height: calc(100dvh - 1.5rem);
+  #itemModal .modal-dialog {
+    margin: .5rem;
+    height: calc(100vh - 1rem);
+    height: calc(100dvh - 1rem);
   }
 }
 
