@@ -17,9 +17,6 @@
 
 <body>
 
-<!-- =====================================================================
-     THANH TRÊN CÙNG
-     ===================================================================== -->
 <header class="topbar">
   <div class="topbar-in">
     <div class="brand">
@@ -30,106 +27,102 @@
 
     <div class="searchbox">
       <i class="bi bi-search"></i>
-      <input type="text" id="globalSearch" placeholder="Tìm đầu mục, người phụ trách…" autocomplete="off" />
+      <input type="text" id="globalSearch" data-i18n-ph="searchPh" autocomplete="off" />
       <kbd class="kbd-hint">⌘K</kbd>
+      <div class="search-sugg d-none" id="searchSugg" role="listbox"></div>
     </div>
 
     <div class="top-actions">
-      <button class="btn btn-primary" id="btnNew"><i class="bi bi-plus-lg"></i> Đầu mục mới</button>
-      <button class="icon-btn" id="btnRefresh" title="Tải lại dữ liệu"><i class="bi bi-arrow-clockwise"></i></button>
+      <div class="seg lang-seg" id="langSeg">
+        <button class="seg-btn is-active" data-lang="vi">VI</button>
+        <button class="seg-btn" data-lang="en">EN</button>
+      </div>
+      <button class="btn btn-primary" id="btnNew"><i class="bi bi-plus-lg"></i> <span data-i18n="newItem"></span></button>
+      <button class="icon-btn" id="btnRefresh" data-i18n-title="refresh"><i class="bi bi-arrow-clockwise"></i></button>
     </div>
   </div>
 
   <nav class="tabs" id="tabs">
-    <button class="tab is-active" data-view="overview">Tổng quan</button>
-    <button class="tab" data-view="network">Mạng lưới</button>
-    <button class="tab" data-view="streams">Luồng chiến lược</button>
-    <button class="tab" data-view="timeline">Dòng thời gian</button>
-    <button class="tab" data-view="board">Bảng điều hành</button>
-    <button class="tab" data-view="list">Danh sách <span class="tab-count" id="tabCountList">0</span></button>
-    <button class="tab" data-view="system">Dữ liệu &amp; hệ thống <span class="tab-count" id="tabCountSystem">0</span></button>
+    <button class="tab is-active" data-view="overview" data-i18n="tabOverview"></button>
+    <button class="tab" data-view="network" data-i18n="tabNetwork"></button>
+    <button class="tab" data-view="streams" data-i18n="tabStreams"></button>
+    <button class="tab" data-view="timeline" data-i18n="tabTimeline"></button>
+    <button class="tab" data-view="board" data-i18n="tabBoard"></button>
+    <button class="tab" data-view="list" data-i18n-title="tabListTip"><span data-i18n="tabList"></span> <span class="tab-count" id="tabCountList">0</span></button>
+    <button class="tab" data-view="system" data-i18n-title="tabSystemTip"><span data-i18n="tabSystem"></span> <span class="tab-count" id="tabCountSystem">0</span></button>
     <span class="tabs-spacer"></span>
-    <button class="tab tab-plain" id="btnCsv">Xuất CSV</button>
-    <button class="tab tab-plain" id="btnPrint">In báo cáo</button>
+    <button class="tab tab-plain" id="btnCsv" data-i18n="exportCsv"></button>
+    <button class="tab tab-plain" id="btnPrint" data-i18n="printReport"></button>
   </nav>
 </header>
 
 <main class="page">
 
-  <!-- Băng cảnh báo cấu hình / dữ liệu mẫu -->
   <div class="notice d-none" id="modeNotice"></div>
 
-  <!-- =====================================================================
-       HELICOPTER VIEW — luôn hiển thị ở mọi tab
-       ===================================================================== -->
+  <!-- HELICOPTER VIEW — hiển thị ở mọi tab -->
   <section class="exec" id="execBanner">
-    <span class="exec-eyebrow">Tóm tắt điều hành · tự động</span>
-    <p class="exec-text" id="execText">Đang đọc dữ liệu…</p>
+    <span class="exec-eyebrow" data-i18n="execEyebrow"></span>
+    <p class="exec-text" id="execText"></p>
     <div class="exec-chips" id="execChips"></div>
   </section>
 
   <section class="kpi-strip" id="kpiStrip"></section>
 
-  <!-- =====================================================================
-       BỘ LỌC TỔNG — áp cho mọi tab
-       ===================================================================== -->
+  <!-- BỘ LỌC TỔNG — áp cho mọi tab -->
   <section class="card filters">
     <div class="card-head">
       <div>
-        <span class="eyebrow">Bộ lọc</span>
-        <h2 class="card-title" id="filterSummary">Đang xem toàn bộ danh mục</h2>
+        <span class="eyebrow" data-i18n="filterEyebrow"></span>
+        <h2 class="card-title" id="filterSummary"></h2>
       </div>
-      <button class="btn btn-ghost btn-sm" id="btnClear">Xóa bộ lọc</button>
+      <button class="btn btn-ghost btn-sm" id="btnClear" data-i18n="clearFilters"></button>
     </div>
 
     <div class="quick-chips" id="quickChips"></div>
 
     <div class="filter-grid">
       <div>
-        <label class="lbl" for="fPic">Người phụ trách</label>
-        <select class="form-select" id="fPic"><option value="ALL">Tất cả</option></select>
+        <label class="lbl" for="fPic" data-i18n="owner"></label>
+        <select class="form-select" id="fPic"></select>
       </div>
       <div>
-        <label class="lbl" for="fStatus">Trạng thái</label>
-        <select class="form-select" id="fStatus">
-          <option value="ALL">Tất cả</option>
-          <option>Open</option><option>In Progress</option><option>Done</option>
-        </select>
+        <label class="lbl" for="fStatus" data-i18n="status"></label>
+        <select class="form-select" id="fStatus"></select>
       </div>
       <div>
-        <label class="lbl" for="fPriority">Ưu tiên</label>
-        <select class="form-select" id="fPriority">
-          <option value="ALL">Tất cả</option>
-          <option>High</option><option>Medium</option><option>Low</option>
-        </select>
+        <label class="lbl" for="fPriority" data-i18n="priority"></label>
+        <select class="form-select" id="fPriority"></select>
       </div>
       <div>
-        <label class="lbl" for="fBand">Mức rủi ro</label>
-        <select class="form-select" id="fBand"><option value="ALL">Tất cả</option></select>
+        <label class="lbl" for="fStream" data-i18n="stream"></label>
+        <select class="form-select" id="fStream"></select>
       </div>
       <div>
-        <label class="lbl" for="fFrom">Từ ngày</label>
+        <label class="lbl" for="fBand" data-i18n="riskLevel"></label>
+        <select class="form-select" id="fBand"></select>
+      </div>
+      <div>
+        <label class="lbl" for="fFrom" data-i18n="dateFrom"></label>
         <input type="date" class="form-control" id="fFrom" />
       </div>
       <div>
-        <label class="lbl" for="fTo">Đến ngày</label>
+        <label class="lbl" for="fTo" data-i18n="dateTo"></label>
         <input type="date" class="form-control" id="fTo" />
       </div>
     </div>
   </section>
 
-  <!-- =====================================================================
-       TAB 1 — TỔNG QUAN
-       ===================================================================== -->
+  <!-- TAB 1 — TỔNG QUAN -->
   <div class="view is-active" id="view-overview">
     <div class="split split-5-7">
       <section class="card">
         <div class="card-head">
           <div>
-            <span class="eyebrow">Signature</span>
-            <h2 class="card-title">Bản đồ rủi ro</h2>
+            <span class="eyebrow" data-i18n="signature"></span>
+            <h2 class="card-title" data-i18n="riskMapTitle"></h2>
           </div>
-          <span class="card-note">Trục ngang: số ngày đến hạn · Trục dọc: chỉ số rủi ro</span>
+          <span class="card-note" data-i18n="riskMapNote"></span>
         </div>
         <div id="riskMap" class="riskmap"></div>
         <div class="legend" id="riskLegend"></div>
@@ -138,8 +131,8 @@
       <section class="card">
         <div class="card-head">
           <div>
-            <span class="eyebrow">Thứ tự xử lý</span>
-            <h2 class="card-title">5 việc cần chạm trước</h2>
+            <span class="eyebrow" data-i18n="triageEyebrow"></span>
+            <h2 class="card-title" data-i18n="triageTitle"></h2>
           </div>
         </div>
         <ol class="triage" id="triageList"></ol>
@@ -148,10 +141,14 @@
 
     <div class="split split-3">
       <section class="card">
-        <div class="card-head"><div><h2 class="card-title">Tải theo người phụ trách</h2></div></div>
+        <div class="card-head">
+          <div><h2 class="card-title" data-i18n="workloadTitle"></h2></div>
+          <span class="local-reset" id="resetWorkload"></span>
+        </div>
         <div id="workload"></div>
+        <div class="wl-detail d-none" id="workloadDetail"></div>
         <div class="hhi-row">
-          <span>Tập trung sở hữu (HHI)</span>
+          <span data-i18n="hhiLabel"></span>
           <strong id="hhiValue">—</strong>
         </div>
         <div class="hhi-bar"><div id="hhiFill"></div></div>
@@ -159,37 +156,41 @@
       </section>
 
       <section class="card">
-        <div class="card-head"><div><h2 class="card-title">Cơ cấu danh mục</h2></div></div>
+        <div class="card-head">
+          <div><h2 class="card-title" data-i18n="mixTitle"></h2></div>
+          <span class="local-reset" id="resetMix"></span>
+        </div>
         <div class="donut-wrap">
           <canvas id="statusDonut"></canvas>
-          <div class="donut-center"><strong id="donutTotal">0</strong><span>đầu mục</span></div>
+          <div class="donut-center"><strong id="donutTotal">0</strong><span data-i18n="itemsUnit"></span></div>
         </div>
         <div class="legend" id="statusLegend"></div>
         <div class="prio-bars" id="prioBars"></div>
       </section>
 
       <section class="card">
-        <div class="card-head"><div><h2 class="card-title">Mật độ đến hạn</h2></div></div>
+        <div class="card-head">
+          <div><h2 class="card-title" data-i18n="dueTitle"></h2></div>
+          <span class="local-reset" id="resetDue"></span>
+        </div>
         <div class="chart-box"><canvas id="dueChart"></canvas></div>
         <p class="card-foot" id="dueNote"></p>
       </section>
     </div>
   </div>
 
-  <!-- =====================================================================
-       TAB 2 — MẠNG LƯỚI
-       ===================================================================== -->
+  <!-- TAB 2 — MẠNG LƯỚI -->
   <div class="view" id="view-network">
     <div class="split split-5-7">
       <section class="card">
         <div class="card-head">
           <div>
-            <span class="eyebrow">Signature</span>
-            <h2 class="card-title">Mạng lưới phụ thuộc</h2>
+            <span class="eyebrow" data-i18n="signature"></span>
+            <h2 class="card-title" data-i18n="networkTitle"></h2>
           </div>
           <div class="seg" id="netMode">
-            <button class="seg-btn is-active" data-mode="dep">Phụ thuộc</button>
-            <button class="seg-btn" data-mode="own">Sở hữu</button>
+            <button class="seg-btn is-active" data-mode="dep" data-i18n="modeDep"></button>
+            <button class="seg-btn" data-mode="own" data-i18n="modeOwn"></button>
           </div>
         </div>
         <div id="network" class="network"></div>
@@ -200,8 +201,8 @@
       <section class="card">
         <div class="card-head">
           <div>
-            <span class="eyebrow">Đường găng</span>
-            <h2 class="card-title">Chuỗi quyết định tiến độ</h2>
+            <span class="eyebrow" data-i18n="cpEyebrow"></span>
+            <h2 class="card-title" data-i18n="cpTitle"></h2>
           </div>
         </div>
         <div id="criticalPath"></div>
@@ -209,63 +210,65 @@
     </div>
   </div>
 
-  <!-- =====================================================================
-       TAB 3 — LUỒNG CHIẾN LƯỢC
-       ===================================================================== -->
+  <!-- TAB 3 — LUỒNG CHIẾN LƯỢC -->
   <div class="view" id="view-streams">
+    <section class="card">
+      <div class="card-head" style="margin:0">
+        <div>
+          <span class="eyebrow" data-i18n="streamsEyebrow"></span>
+          <h2 class="card-title" data-i18n="streamsTitle"></h2>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnNewStream"><i class="bi bi-plus-lg"></i> <span data-i18n="newStream"></span></button>
+      </div>
+    </section>
     <div id="streamList"></div>
-    <p class="foot-note">~ = luồng được suy ra từ khoá trong tiêu đề, chưa xác nhận thủ công. Mở một đầu mục để đặt lại.</p>
+    <p class="foot-note" data-i18n="streamFootnote"></p>
   </div>
 
-  <!-- =====================================================================
-       TAB 4 — DÒNG THỜI GIAN
-       ===================================================================== -->
+  <!-- TAB 4 — DÒNG THỜI GIAN -->
   <div class="view" id="view-timeline">
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Dòng thời gian</span>
-          <h2 class="card-title">Lịch giao hàng theo ngày</h2>
+          <span class="eyebrow" data-i18n="timelineEyebrow"></span>
+          <h2 class="card-title" data-i18n="timelineTitle"></h2>
         </div>
-        <span class="card-note">Hình thoi = chỉ có hạn chốt, chưa có ngày bắt đầu</span>
+        <span class="card-note" data-i18n="timelineNote"></span>
       </div>
       <div id="gantt" class="gantt"></div>
     </section>
   </div>
 
-  <!-- =====================================================================
-       TAB 5 — BẢNG ĐIỀU HÀNH (KANBAN)
-       ===================================================================== -->
+  <!-- TAB 5 — BẢNG ĐIỀU HÀNH -->
   <div class="view" id="view-board">
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Bảng điều hành</span>
-          <h2 class="card-title">Kéo thả để đổi trạng thái</h2>
+          <span class="eyebrow" data-i18n="boardEyebrow"></span>
+          <h2 class="card-title" data-i18n="boardTitle"></h2>
         </div>
-        <span class="card-note" id="boardNote">Thay đổi được lưu ngay lên Supabase</span>
+        <span class="card-note" id="boardNote"></span>
       </div>
       <div class="board" id="board"></div>
     </section>
   </div>
 
-  <!-- =====================================================================
-       TAB 6 — DANH SÁCH
-       ===================================================================== -->
+  <!-- TAB 6 — DANH SÁCH -->
   <div class="view" id="view-list">
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Danh sách</span>
-          <h2 class="card-title"><span id="listCount">0</span> đầu mục</h2>
+          <span class="eyebrow" data-i18n="listEyebrow"></span>
+          <h2 class="card-title"><span id="listCount">0</span> <span data-i18n="itemsUnit"></span></h2>
         </div>
-        <span class="card-note">Bấm một dòng để mở chi tiết</span>
+        <span class="card-note" data-i18n="listNote"></span>
       </div>
       <div class="table-wrap">
         <table id="itemsTable" class="table w-100">
           <thead><tr>
-            <th>Đầu mục</th><th>Rủi ro</th><th>Phụ trách</th><th>Hạn chốt</th>
-            <th>Ưu tiên</th><th>Trạng thái</th><th>Bước tiếp theo</th><th></th>
+            <th data-i18n="colItem"></th><th data-i18n="colRisk"></th><th data-i18n="colOwner"></th>
+            <th data-i18n="colDue"></th><th data-i18n="colPriority"></th><th data-i18n="colStatus"></th>
+            <th data-i18n="colNext"></th><th></th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -273,39 +276,38 @@
     </section>
   </div>
 
-  <!-- =====================================================================
-       TAB 7 — DỮ LIỆU & HỆ THỐNG
-       ===================================================================== -->
+  <!-- TAB 7 — DỮ LIỆU & HỆ THỐNG -->
   <div class="view" id="view-system">
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Chất lượng dữ liệu</span>
-          <h2 class="card-title">Độ đầy đủ theo trường</h2>
+          <span class="eyebrow" data-i18n="qualityEyebrow"></span>
+          <h2 class="card-title" data-i18n="qualityTitle"></h2>
         </div>
-        <span class="card-note">Bấm một đầu mục để bổ sung ngay</span>
+        <span class="card-note" data-i18n="qualityNote"></span>
       </div>
       <div class="quality-grid" id="qualityGrid"></div>
+      <p class="card-foot" id="qualityFoot"></p>
     </section>
 
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Hệ thống</span>
-          <h2 class="card-title">Tăng kết nối</h2>
+          <span class="eyebrow" data-i18n="systemEyebrow"></span>
+          <h2 class="card-title" data-i18n="systemTitle"></h2>
         </div>
       </div>
       <div class="conn-grid" id="connGrid"></div>
       <p class="card-foot" id="connNote"></p>
       <pre class="sql" id="sqlBlock"></pre>
-      <button class="btn btn-primary btn-sm" id="btnCopySql">Sao chép SQL</button>
+      <button class="btn btn-primary btn-sm" id="btnCopySql" data-i18n="copySql"></button>
     </section>
 
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow">Minh bạch công thức</span>
-          <h2 class="card-title">Cách tính chỉ số rủi ro (WRI)</h2>
+          <span class="eyebrow" data-i18n="formulaEyebrow"></span>
+          <h2 class="card-title" data-i18n="formulaTitle"></h2>
         </div>
       </div>
       <p class="formula-intro" id="formulaIntro"></p>
@@ -316,65 +318,60 @@
 
 </main>
 
-<footer class="site-foot">
-  <strong>xperise</strong> · Workstream Intelligence v3.0 · Chỉ số tính trực tiếp từ dữ liệu thật, không ước lượng
-</footer>
 
-<!-- =====================================================================
-     MODAL — THÊM / SỬA ĐẦU MỤC
-     ===================================================================== -->
+<!-- MODAL — THÊM / SỬA ĐẦU MỤC -->
 <div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h5 class="modal-title" id="modalTitle">Đầu mục mới</h5>
+          <h5 class="modal-title" id="modalTitle"></h5>
           <div class="modal-sub" id="modalSub"></div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form id="itemForm">
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-12">
-              <label class="lbl" for="mTitle">Tên đầu mục <span class="req">*</span></label>
+              <label class="lbl" for="mTitle"><span data-i18n="fTitle"></span> <span class="req">*</span></label>
               <input class="form-control" id="mTitle" required />
             </div>
             <div class="col-12">
-              <label class="lbl" for="mDesc">Mô tả</label>
+              <label class="lbl" for="mDesc" data-i18n="fDesc"></label>
               <textarea class="form-control" id="mDesc" rows="2"></textarea>
             </div>
             <div class="col-md-6">
-              <label class="lbl" for="mStart">Ngày bắt đầu</label>
+              <label class="lbl" for="mStart" data-i18n="fStart"></label>
               <input type="date" class="form-control" id="mStart" />
             </div>
             <div class="col-md-6">
-              <label class="lbl" for="mEnd">Hạn chốt</label>
+              <label class="lbl" for="mEnd" data-i18n="fEnd"></label>
               <input type="date" class="form-control" id="mEnd" />
             </div>
             <div class="col-md-6">
-              <label class="lbl" for="mPic">Người phụ trách <span class="req">*</span></label>
-              <input class="form-control" id="mPic" list="picList" required placeholder="Nhiều người: ngăn bằng dấu phẩy" />
+              <label class="lbl" for="mPic"><span data-i18n="fOwner"></span> <span class="req">*</span></label>
+              <input class="form-control" id="mPic" list="picList" data-i18n-ph="fOwnerPh" required />
               <datalist id="picList"></datalist>
             </div>
             <div class="col-md-3">
-              <label class="lbl" for="mPriority">Ưu tiên</label>
+              <label class="lbl" for="mPriority" data-i18n="priority"></label>
               <select class="form-select" id="mPriority">
                 <option>High</option><option selected>Medium</option><option>Low</option>
               </select>
             </div>
             <div class="col-md-3">
-              <label class="lbl" for="mStatus">Trạng thái</label>
+              <label class="lbl" for="mStatus" data-i18n="status"></label>
               <select class="form-select" id="mStatus">
                 <option selected>Open</option><option>In Progress</option><option>Done</option>
               </select>
             </div>
             <div class="col-12">
-              <label class="lbl" for="mNext">Bước tiếp theo</label>
-              <textarea class="form-control" id="mNext" rows="2"></textarea>
+              <label class="lbl" for="mNext" data-i18n="fNext"></label>
+              <textarea class="form-control" id="mNext" rows="2" data-i18n-ph="fNextPh"></textarea>
             </div>
-            <div class="col-12" id="streamField">
-              <label class="lbl" for="mStream">Luồng chiến lược</label>
+            <div class="col-12">
+              <label class="lbl" for="mStream" data-i18n="stream"></label>
               <select class="form-select" id="mStream"></select>
               <div class="hint" id="streamHint"></div>
             </div>
@@ -384,10 +381,10 @@
           <div class="alert-box d-none" id="modalError"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-ghost btn-sm" id="btnDelete">Xóa đầu mục</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnDelete" data-i18n="deleteItem"></button>
           <span class="flex-grow-1"></span>
-          <button type="button" class="btn btn-ghost btn-sm" data-bs-dismiss="modal">Hủy</button>
-          <button type="submit" class="btn btn-primary btn-sm" id="btnSave">Lưu</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-bs-dismiss="modal" data-i18n="cancel"></button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btnSave" data-i18n="save"></button>
         </div>
       </form>
     </div>
@@ -403,6 +400,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 <script src="views.js"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>
