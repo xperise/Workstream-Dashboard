@@ -462,10 +462,31 @@ div.dt-container .dt-paging .dt-paging-button { font-size: 12.5px; border-radius
    MODAL
    Popup dài hơn màn hình thì cuộn BÊN TRONG phần thân, không đẩy tràn trang.
    ========================================================================== */
+/* Chiều cao popup tính thẳng theo màn hình, không phụ thuộc biến của Bootstrap.
+   Trước đây lề tự đặt (1.75rem) lệch với biến --bs-modal-margin (0.5rem) nên
+   Bootstrap tính chiều cao dư ra, đẩy nút Lưu tụt xuống dưới màn hình.
+   100dvh để trên điện thoại không bị thanh địa chỉ che mất phần chân. */
 .modal { overflow-y: auto; }
-.modal-dialog-scrollable .modal-body { overflow-y: auto; }
-.modal-dialog { margin-top: 1.75rem; margin-bottom: 1.75rem; }
-@media (max-width: 760px) { .modal-dialog { margin: .75rem; } }
+.modal-dialog { margin: 1.75rem auto; }
+.modal-dialog-centered { min-height: calc(100% - 3.5rem); }
+
+.modal-dialog-scrollable .modal-content {
+  max-height: calc(100vh - 3.5rem);
+  max-height: calc(100dvh - 3.5rem);
+  overflow: hidden;
+}
+/* Chỉ phần ruột cuộn — tiêu đề và hàng nút luôn nhìn thấy. */
+.modal-dialog-scrollable .modal-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.modal-header, .modal-footer { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .modal-dialog { margin: .75rem; }
+  .modal-dialog-centered { min-height: calc(100% - 1.5rem); }
+  .modal-dialog-scrollable .modal-content {
+    max-height: calc(100vh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+}
 
 .modal-content { border: 1px solid var(--line); border-radius: var(--r); }
 .modal-header { border-bottom: 1px solid var(--line-soft); padding: 16px 20px; align-items: flex-start; }
@@ -614,3 +635,40 @@ div.dt-container .dt-paging .dt-paging-button { font-size: 12.5px; border-radius
   padding: 3px 7px; font-size: 12.5px; font-family: inherit; color: var(--ink);
 }
 .cell-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(168,85,247,.18); }
+
+
+/* ==========================================================================
+   ĐƯỜNG GĂNG — phân nhóm liên kết đã xác nhận và gợi ý còn lại
+   ========================================================================== */
+.link-section {
+  margin: 16px 0 4px; padding-top: 13px; border-top: 1px solid var(--line-soft);
+}
+.link-section .lbl { margin: 0; }
+.chain-step { cursor: pointer; }
+.chain-step:hover .link-pair { color: var(--violet-deep); }
+.ev-tag.is-done::before { background: var(--stable); }
+.ev-tag.is-done { color: var(--stable); font-weight: 600; }
+
+/* ==========================================================================
+   QUẢN LÝ LUỒNG CHIẾN LƯỢC
+   ========================================================================== */
+.link-btn {
+  background: none; border: 0; padding: 4px 0; margin-top: 7px;
+  font-size: 12px; font-weight: 600; color: var(--violet-deep);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.link-btn:hover { color: var(--ink); }
+
+.stream-manage {
+  margin-top: 9px; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+}
+.sm-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--line-soft);
+}
+.sm-row:last-of-type { border-bottom: 0; }
+.sm-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-count { flex: 0 0 auto; font-size: 11px; color: var(--ink-3); }
+.sm-row .icon-btn { width: 26px; height: 26px; font-size: 11px; }
+.sm-empty { font-size: 12px; color: var(--ink-3); padding: 8px 0; text-align: center; }

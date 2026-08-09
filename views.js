@@ -456,33 +456,75 @@ function renderNetwork() {
 
 function renderCriticalPath() {
   const box = el("criticalPath");
-  if (!S.links.length) {
-    const sug = suggestLinks();
-    if (!sug.length) { box.innerHTML = emptyBox(t("cpNone")); return; }
-    box.innerHTML = `<p class="card-foot" style="margin:0 0 12px">${esc(t("cpIntro"))}</p>` +
-      sug.map((l, i) => {
-        const a = S.all.find(x => x.id === l.from), b = S.all.find(x => x.id === l.to);
-        if (!a || !b) return "";
-        return `<div class="link-item">
-          <div class="link-pair">${esc(a.title)}<span class="arrow">→</span>${esc(b.title)}</div>
-          <div class="link-ev">${esc(evidenceText(l))}</div>
-          <div class="link-actions">
-            <span class="ev-tag">${esc(l.kind === "note" ? t("evTagNote") : t("evTagStream"))}</span>
-            <button class="btn btn-ghost btn-sm" data-link="${i}">${esc(t("confirmLink"))}</button>
-          </div></div>`;
-      }).join("");
-    box.querySelectorAll("[data-link]").forEach(b => b.addEventListener("click", () => confirmLink(sug[+b.dataset.link])));
+
+  // Bỏ khỏi danh sách gợi ý những cặp đã xác nhận (và cặp ngược chiều của nó,
+  // vì A chặn B thì B không thể chặn ngược lại A).
+  const taken = new Set();
+  S.links.forEach(l => { taken.add(l.from + ">" + l.to); taken.add(l.to + ">" + l.from); });
+  const sug = suggestLinks().filter(l => !taken.has(l.from + ">" + l.to));
+
+  let html = "";
+
+  /* ---------- Phần 1: chuỗi đường găng (chỉ khi đã có liên kết) ---------- */
+  if (S.links.length) {
+    const chain = longestChain();
+    if (chain.length > 1) {
+      html += `<p class="card-foot" style="margin:0 0 12px">${esc(t("cpChain"))}</p>` +
+        chain.map((p, i) => `<div class="link-item chain-step" data-id="${esc(p.id)}">
+          <div class="link-pair">${i+1}. ${esc(p.title)}</div>
+          <div class="link-ev">${esc(picsOf(p).join(", "))} · ${p.timeline_end ? fmtDate(p.timeline_end) : t("noDueDate")}</div>
+          <div class="link-actions"><span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span></div>
+        </div>`).join("");
+    }
+
+    /* ---------- Phần 2: các liên kết đã xác nhận, có thể gỡ ---------- */
+    html += `<div class="link-section"><span class="lbl">${esc(t("cpConfirmed"))} (${S.links.length})</span></div>`;
+    html += S.links.map((l, i) => {
+      const a = S.all.find(x => String(x.id) === String(l.from));
+      const b = S.all.find(x => String(x.id) === String(l.to));
+      if (!a || !b) return "";
+      return `<div class="link-item">
+        <div class="link-pair">${esc(a.title)}<span class="arrow">→</span>${esc(b.title)}</div>
+        <div class="link-actions">
+          <span class="ev-tag is-done">${esc(t("linkConfirmed"))}</span>
+          <button class="btn btn-ghost btn-sm" data-unlink="${i}">${esc(t("removeLink"))}</button>
+        </div></div>`;
+    }).join("");
+  }
+
+  /* ---------- Phần 3: gợi ý còn lại — LUÔN hiện, để nối tiếp được ---------- */
+  if (sug.length) {
+    html += S.links.length
+      ? `<div class="link-section"><span class="lbl">${esc(t("cpMore"))}</span></div>`
+      : `<p class="card-foot" style="margin:0 0 12px">${esc(t("cpIntro"))}</p>`;
+
+    html += sug.map((l, i) => {
+      const a = S.all.find(x => String(x.id) === String(l.from));
+      const b = S.all.find(x => String(x.id) === String(l.to));
+      if (!a || !b) return "";
+      return `<div class="link-item">
+        <div class="link-pair">${esc(a.title)}<span class="arrow">→</span>${esc(b.title)}</div>
+        <div class="link-ev">${esc(evidenceText(l))}</div>
+        <div class="link-actions">
+          <span class="ev-tag">${esc(l.kind === "note" ? t("evTagNote") : t("evTagStream"))}</span>
+          <button class="btn btn-ghost btn-sm" data-link="${i}">${esc(t("confirmLink"))}</button>
+        </div></div>`;
+    }).join("");
+  } else if (S.links.length) {
+    html += `<div class="link-section"><span class="lbl">${esc(t("cpMore"))}</span></div>
+             <p class="card-foot" style="margin:0">${esc(t("cpNoMore"))}</p>`;
+  } else {
+    box.innerHTML = emptyBox(t("cpNone"));
     return;
   }
 
-  const chain = longestChain();
-  box.innerHTML = `<p class="card-foot" style="margin:0 0 12px">${esc(t("cpChain"))}</p>` +
-    chain.map((p, i) => `<div class="link-item" data-id="${esc(p.id)}" style="cursor:pointer">
-      <div class="link-pair">${i+1}. ${esc(p.title)}</div>
-      <div class="link-ev">${esc(picsOf(p).join(", "))} · ${p.timeline_end ? fmtDate(p.timeline_end) : t("noDueDate")}</div>
-      <div class="link-actions"><span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span></div>
-    </div>`).join("");
-  box.querySelectorAll("[data-id]").forEach(d => d.addEventListener("click", () => focusItem(d.dataset.id)));
+  box.innerHTML = html;
+  box.querySelectorAll("[data-link]").forEach(b =>
+    b.addEventListener("click", () => confirmLink(sug[+b.dataset.link])));
+  box.querySelectorAll("[data-unlink]").forEach(b =>
+    b.addEventListener("click", () => removeLink(+b.dataset.unlink)));
+  box.querySelectorAll(".chain-step[data-id]").forEach(d =>
+    d.addEventListener("click", () => focusItem(d.dataset.id)));
 }
 
 function longestChain() {
@@ -515,6 +557,25 @@ async function confirmLink(link) {
   } else {
     toast(t("linkSession"), "ok");
   }
+  renderNetwork();
+}
+
+/** Gỡ một liên kết đã xác nhận — để sửa khi bấm nhầm. */
+async function removeLink(index) {
+  const l = S.links[index];
+  if (!l) return;
+  S.links.splice(index, 1);
+
+  if (S.hasBlockedBy && !S.demo) {
+    const target = S.all.find(x => String(x.id) === String(l.to));
+    if (target) {
+      const arr = (target.blocked_by || []).filter(x => String(x) !== String(l.from));
+      const { error } = await S.sb.from("projects").update({ blocked_by: arr }).eq("id", l.to);
+      if (error) { toast(t("errSave")(error.message), "err"); S.links.splice(index, 0, l); return; }
+      target.blocked_by = arr;
+    }
+  }
+  toast(t("linkRemoved"), "ok");
   renderNetwork();
 }
 

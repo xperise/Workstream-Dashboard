@@ -126,6 +126,7 @@ const S = {
   realtime: false,      // đã NHẬN ĐƯỢC tín hiệu thật từ bảng
   all: [], view: [], links: [],
   customStreams: [],    // luồng do người dùng tự tạo
+  hiddenStreams: [],    // luồng đã bị xóa khỏi danh sách chọn
   tab: "overview",
   modalId: null,
   modal: null,          // GIỮ MỘT bản popup duy nhất — tạo mới mỗi lần sẽ khóa cuộn trang
@@ -240,15 +241,33 @@ function streamLabel(id) {
   const built = t("streams." + id);
   return typeof built === "string" && built !== "streams." + id ? built : id;
 }
+
+/** Quy mọi cách ghi về một mã chuẩn.
+    Dữ liệu cũ có thể lưu thẳng tên hiển thị ("Sản phẩm & Nền tảng") thay vì mã
+    ("product"). Nếu không quy về một mối, danh sách sẽ hiện hai dòng trùng tên. */
+function canonicalStreamId(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (STREAM_RULES.some(r => r.id === s)) return s;
+  const low = s.toLowerCase();
+  for (const r of STREAM_RULES) {
+    for (const lang of Object.keys(I18N)) {
+      const lbl = I18N[lang] && I18N[lang].streams && I18N[lang].streams[r.id];
+      if (typeof lbl === "string" && lbl.toLowerCase() === low) return r.id;
+    }
+  }
+  return s;                       // luồng do người dùng tự đặt tên
+}
 /** So khớp theo TỪ NGUYÊN VẸN — nếu không, "app" sẽ khớp nhầm vào "Apply". */
 function streamOf(p) {
   if (p.stream && String(p.stream).trim()) {
-    const raw = String(p.stream).trim();
-    return { id: raw, name: streamLabel(raw), inferred: false };
+    const raw = canonicalStreamId(p.stream);
+    if (!S.hiddenStreams.includes(raw)) return { id: raw, name: streamLabel(raw), inferred: false };
   }
   const bag = wordBag(String(p.title||"") + " " + String(p.description||""));
   let best = null, bestScore = 0;
   STREAM_RULES.forEach(r => {
+    if (S.hiddenStreams.includes(r.id)) return;      // luồng đã xóa thì không đoán ra nữa
     const hits = r.keys.filter(k => bag.includes(" " + k + " ")).length;
     if (hits > bestScore) { bestScore = hits; best = r.id; }
   });
@@ -269,7 +288,9 @@ function enrich(rows) {
 function allStreams() {
   const ids = STREAM_RULES.map(r => r.id)
     .concat(S.customStreams)
-    .concat(S.all.map(p => p._stream.id).filter(id => id !== "__none"));
+    .concat(S.all.map(p => p._stream.id))
+    .map(canonicalStreamId)
+    .filter(id => id && id !== "__none" && !S.hiddenStreams.includes(id));
   return [...new Set(ids)].map(id => ({ id, name: streamLabel(id) }));
 }
 
@@ -489,6 +510,7 @@ function openModal(id) {
   el("mStream").disabled = !S.hasStream;
   el("streamHint").textContent = S.hasStream ? t("streamHintOn") : t("streamHintOff");
 
+  ensureStreamManageUI();
   renderWriPreview();
 
   // MỘT bản popup duy nhất cho cả vòng đời trang. Tạo mới mỗi lần mở sẽ để lại
@@ -507,6 +529,110 @@ function fillStreamSelect(selected) {
   el("mStream").value = selected || "";
 }
 
+
+/* ==========================================================================
+   QUẢN LÝ LUỒNG — thêm và xóa
+   Danh sách luồng tùy chỉnh được nhớ lại cho lần mở sau bằng bộ nhớ trình duyệt.
+   ========================================================================== */
+function saveStreamPrefs() {
+  try {
+    localStorage.setItem("xp-streams", JSON.stringify({ hidden: S.hiddenStreams, custom: S.customStreams }));
+  } catch (e) { /* mở bằng file:// có thể bị chặn — bỏ qua, chỉ mất khi tải lại */ }
+}
+function loadStreamPrefs() {
+  try {
+    const r = JSON.parse(localStorage.getItem("xp-streams") || "{}");
+    if (Array.isArray(r.hidden)) S.hiddenStreams = r.hidden;
+    if (Array.isArray(r.custom)) S.customStreams = r.custom;
+  } catch (e) { /* dữ liệu hỏng thì dùng mặc định */ }
+}
+
+/** Dựng khu quản lý luồng ngay dưới ô chọn, chỉ tạo một lần. */
+function ensureStreamManageUI() {
+  if (el("streamManage")) return;
+
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "link-btn"; btn.id = "btnManageStreams";
+  btn.textContent = t("manageStreams");
+
+  const box = document.createElement("div");
+  box.id = "streamManage"; box.className = "stream-manage d-none";
+
+  el("streamField").appendChild(btn);
+  el("streamField").appendChild(box);
+
+  btn.addEventListener("click", () => {
+    box.classList.toggle("d-none");
+    if (!box.classList.contains("d-none")) renderStreamManage();
+  });
+}
+
+function renderStreamManage() {
+  const box = el("streamManage");
+  if (!box) return;
+  const list = allStreams();
+
+  box.innerHTML = (list.length
+    ? list.map(s => {
+        const n = S.all.filter(p => p._stream.id === s.id).length;
+        return `<div class="sm-row">
+          <span class="sm-name">${esc(s.name)}</span>
+          <span class="sm-count">${esc(t("streamInUse")(n))}</span>
+          <button type="button" class="icon-btn danger" data-del="${esc(s.id)}"
+                  title="${esc(t("deleteStream"))}"><i class="bi bi-trash3"></i></button>
+        </div>`;
+      }).join("")
+    : `<div class="sm-empty">${esc(t("streamNoneLeft"))}</div>`)
+    + (S.hiddenStreams.length
+        ? `<button type="button" class="link-btn" id="btnRestoreStreams">${esc(t("streamRestore"))}</button>`
+        : "");
+
+  box.querySelectorAll("[data-del]").forEach(b =>
+    b.addEventListener("click", () => deleteStream(b.dataset.del)));
+  const rb = el("btnRestoreStreams");
+  if (rb) rb.addEventListener("click", restoreStreams);
+}
+
+/** Xóa một luồng. Các đầu mục đang gán luồng đó được gỡ về "tự suy ra". */
+async function deleteStream(id) {
+  const name = streamLabel(id);
+  const using = S.all.filter(p => p._stream.id === id);
+  const assigned = using.filter(p => p.stream);      // chỉ những cái gán tay mới cần ghi lại
+
+  if (!confirm(t("streamDeleteConfirm")(name, using.length))) return;
+
+  if (assigned.length && S.hasStream && !S.demo) {
+    const { error } = await S.sb.from("projects").update({ stream: null })
+                                .in("id", assigned.map(p => p.id));
+    if (error) { toast(t("errSave")(error.message), "err"); return; }
+  }
+  assigned.forEach(p => { p.stream = null; });
+
+  // Luồng dựng sẵn thì đánh dấu ẩn, nếu không hệ thống sẽ đoán ra lại ngay.
+  if (STREAM_RULES.some(r => r.id === id) && !S.hiddenStreams.includes(id)) S.hiddenStreams.push(id);
+  S.customStreams = S.customStreams.filter(x => canonicalStreamId(x) !== id);
+  saveStreamPrefs();
+
+  S.all = enrich(S.all);
+  fillSelects();
+  if (el("mStream")) fillStreamSelect(el("mStream").value === id ? "" : el("mStream").value);
+  renderStreamManage();
+  applyFilters();
+  toast(t("streamDeleted")(name), "ok");
+}
+
+/** Khôi phục các luồng dựng sẵn đã xóa — để xóa nhầm vẫn quay lại được. */
+function restoreStreams() {
+  S.hiddenStreams = [];
+  saveStreamPrefs();
+  S.all = enrich(S.all);
+  fillSelects();
+  if (el("mStream")) fillStreamSelect(el("mStream").value);
+  renderStreamManage();
+  applyFilters();
+  toast(t("streamRestored"), "ok");
+}
+
 /** Người dùng tự tạo luồng mới — luồng sẵn có giữ nguyên, chỉ thêm vào. */
 function createStream(preset) {
   const name = (preset !== undefined ? preset : prompt(t("newStreamPrompt"), ""));
@@ -515,6 +641,7 @@ function createStream(preset) {
   const exists = allStreams().some(s => s.name.toLowerCase() === clean.toLowerCase() || s.id === clean);
   if (exists) { toast(t("streamExists"), "err"); return clean; }
   S.customStreams.push(clean);
+  saveStreamPrefs();
   fillSelects();
   toast(t("streamAdded")(clean), "ok");
   return clean;
@@ -746,6 +873,7 @@ function exportCsv() {
 async function boot() {
   initLang();
   applyStaticText();
+  loadStreamPrefs();
   bindEvents();
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
