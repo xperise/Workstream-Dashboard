@@ -266,7 +266,7 @@
       <div class="table-wrap">
         <table id="itemsTable" class="table w-100">
           <thead><tr>
-            <th data-i18n="colItem"></th><th data-i18n="colRisk"></th><th data-i18n="colOwner"></th>
+            <th data-i18n="colItem"></th><th data-i18n="colProgress"></th><th data-i18n="colRisk"></th><th data-i18n="colOwner"></th>
             <th data-i18n="colDue"></th><th data-i18n="colPriority"></th><th data-i18n="colStatus"></th>
             <th data-i18n="colNext"></th><th></th>
           </tr></thead>
@@ -302,6 +302,7 @@
       </div>
       <p class="formula-intro" id="formulaIntro"></p>
       <div class="formula-grid" id="formulaGrid"></div>
+      <div class="threshold-row" id="thresholdRow"></div>
       <div class="legend" id="bandLegend"></div>
     </section>
   </div>
@@ -359,6 +360,18 @@
             <div class="col-12">
               <label class="lbl" for="mNext" data-i18n="fNext"></label>
               <textarea class="form-control" id="mNext" rows="2" data-i18n-ph="fNextPh"></textarea>
+            </div>
+            <div class="col-12" id="subBlock">
+              <div class="sub-head">
+                <label class="lbl" data-i18n="subTitle"></label>
+                <span class="sub-progress" id="subProgress"></span>
+              </div>
+              <div id="subList" class="sub-list"></div>
+              <div class="sub-add">
+                <input class="form-control" id="subNew" data-i18n-ph="subAddPh" />
+                <button type="button" class="btn btn-ghost btn-sm" id="btnSubAdd" data-i18n="subAdd"></button>
+              </div>
+              <div class="hint" id="subHint"></div>
             </div>
             <div class="col-12">
               <label class="lbl" for="mStream" data-i18n="stream"></label>

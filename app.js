@@ -46,8 +46,25 @@ const WRI = {
       { key: "description",    labelKey: "fMissDesc",  points: 3 }
     ]
   },
+  // Thành phần 5 — lệch tiến độ. CHỈ áp dụng cho đầu mục đã chia hạng mục nhỏ
+  // và có đủ mốc thời gian. Không chia nhỏ thì không bị trừ điểm, để việc chia
+  // nhỏ là tự nguyện chứ không thành hình phạt.
+  drift: {
+    labelKey: "fDrift",
+    ladder: [
+      { gap: 50, labelKey: "fDrift50", points: 20 },
+      { gap: 30, labelKey: "fDrift30", points: 12 },
+      { gap: 15, labelKey: "fDrift15", points: 6 }
+    ],
+    onTrack: { labelKey: "fDriftOk", points: 0 }
+  },
   cap: 100
 };
+
+/* Tham số mặc định giữ nguyên một bản sao, để nút "khôi phục mặc định" dùng lại
+   sau khi người dùng tự sửa bảng điểm. */
+const WRI_DEFAULT = JSON.parse(JSON.stringify(WRI));
+const THRESHOLD_DEFAULT_KEYS = ["dueSoonDays", "hhiConcentrated", "hhiTight", "dataThin"];
 
 /** Trần điểm của từng thành phần được TÍNH RA từ bảng trên, không gõ tay —
     nên đổi bảng điểm là bảng giải thích tự khớp lại. */
@@ -58,6 +75,7 @@ function componentMax(name) {
   }
   if (name === "priority") return Math.max(...Object.values(WRI.priority.points));
   if (name === "status")   return Math.max(...Object.values(WRI.status.points));
+  if (name === "drift")    return Math.max(0, ...WRI.drift.ladder.map(l => l.points));
   return WRI.data.fields.reduce((s, f) => s + f.points, 0);
 }
 
@@ -94,6 +112,19 @@ const AVATAR_COLORS = ["#7E22CE","#0D9488","#E11D48","#EA8C0B","#2563EB","#A855F
 const SQL_CONNECTED = `-- Xperise Workstream Intelligence — connected layer
 -- An toan: chay lai nhieu lan cung khong sao, khong xoa du lieu cu.
 
+create table if not exists public.subtasks (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  title      text not null,
+  done       boolean not null default false,
+  owner      text,
+  due        date,
+  sort_order smallint not null default 0,
+  created_at timestamptz default now()
+);
+create index if not exists subtasks_project_idx on public.subtasks(project_id);
+alter table public.subtasks disable row level security;
+
 alter table public.projects
   add column if not exists stream     text,
   add column if not exists blocked_by uuid[] default '{}',
@@ -127,6 +158,9 @@ const S = {
   all: [], view: [], links: [],
   customStreams: [],    // luồng do người dùng tự tạo
   hiddenStreams: [],    // luồng đã bị xóa khỏi danh sách chọn
+  subs: {},             // hạng mục nhỏ, gom theo id đầu mục
+  expanded: {},         // đầu mục nào đang mở rộng trong bảng Danh sách
+  hasSubs: false,       // bảng subtasks đã tồn tại trên Supabase chưa
   tab: "overview",
   modalId: null,
   modal: null,          // GIỮ MỘT bản popup duy nhất — tạo mới mỗi lần sẽ khóa cuộn trang
@@ -139,8 +173,17 @@ const FLAGS = {
   critical: { test: p => p._wri.band.key === "critical" },
   highPrio: { test: p => p.priority === "High" },
   noStart:  { test: p => !p.timeline_start },
-  noDue:    { test: p => !p.timeline_end && p.status !== "Done" }
+  noDue:    { test: p => !p.timeline_end && p.status !== "Done" },
+  // --- bốn bộ lọc theo tiến độ, chỉ bắt các đầu mục đã chia nhỏ ---
+  notStarted: { test: p => p._wri.progress.total > 0 && p._wri.progress.done === 0 && p.status !== "Done" },
+  running:    { test: p => p._wri.progress.total > 0 && p._wri.progress.done > 0 && p._wri.progress.donePct < 100 },
+  nearlyDone: { test: p => p._wri.progress.total > 0 && p._wri.progress.donePct >= 80 && p.status !== "Done" },
+  drifting:   { test: p => p._wri.driftGap !== null && p._wri.driftGap >= minDriftGap() }
 };
+/** Bậc lệch nhẹ nhất trong bảng điểm — dùng làm ngưỡng "bắt đầu coi là lệch". */
+function minDriftGap() {
+  return WRI.drift.ladder.length ? WRI.drift.ladder[WRI.drift.ladder.length - 1].gap : 15;
+}
 function flagLabel(k) { return t("flags." + k); }
 
 /* ==========================================================================
@@ -195,7 +238,8 @@ function computeWRI(p) {
 
   if (p.status === "Done") {
     return { score: 0, daysLeft, band: bandOf(0), reasonKey: ["done"],
-             parts: { schedule: 0, priority: 0, status: 0, data: 0 }, missing: missingFields(p) };
+             parts: { schedule: 0, priority: 0, status: 0, data: 0, drift: 0 },
+             missing: missingFields(p), progress: progressOf(p), driftGap: null };
   }
 
   let schedule, reasonKey;
@@ -216,9 +260,209 @@ function computeWRI(p) {
   let data = 0;
   WRI.data.fields.forEach(f => { if (missing.includes(f.key)) data += f.points; });
 
-  const score = Math.min(WRI.cap, schedule + priority + status + data);
+  // Lệch tiến độ — chỉ chấm khi đầu mục đã chia nhỏ VÀ có đủ mốc thời gian.
+  const prog = progressOf(p);
+  let drift = 0, driftGap = null;
+  if (prog.total > 0 && prog.elapsedPct !== null) {
+    driftGap = Math.round(prog.elapsedPct - prog.donePct);
+    const step = WRI.drift.ladder.find(l => driftGap >= l.gap);
+    drift = step ? step.points : WRI.drift.onTrack.points;
+  }
+
+  const score = Math.min(WRI.cap, schedule + priority + status + data + drift);
   return { score, daysLeft, band: bandOf(score), reasonKey,
-           parts: { schedule, priority, status, data }, missing };
+           parts: { schedule, priority, status, data, drift },
+           missing, progress: prog, driftGap };
+}
+
+
+
+/* ==========================================================================
+   KHU NHẬP HẠNG MỤC NHỎ TRONG POPUP
+   ========================================================================== */
+function renderSubEditor() {
+  const box = el("subList");
+  if (!box) return;
+
+  // Đầu mục chưa lưu thì chưa có id để gắn hạng mục con vào.
+  if (!S.modalId) {
+    box.innerHTML = `<div class="sub-empty">${esc(t("subSaveFirst"))}</div>`;
+    el("subProgress").textContent = "";
+    el("subNew").disabled = true; el("btnSubAdd").disabled = true;
+    el("subHint").textContent = "";
+    return;
+  }
+  el("subNew").disabled = false; el("btnSubAdd").disabled = false;
+
+  const p = S.all.find(x => String(x.id) === String(S.modalId));
+  const list = S.subs[S.modalId] || [];
+  const prog = p ? progressOf(p) : { total: 0, done: 0, donePct: 0, elapsedPct: null };
+
+  el("subProgress").innerHTML = list.length
+    ? `<span class="sub-count">${prog.done}/${prog.total}</span>
+       <span class="sub-bar"><i style="width:${prog.donePct}%"></i></span>
+       <span class="sub-pct">${prog.donePct}%</span>`
+    : "";
+
+  box.innerHTML = list.length
+    ? list.map(s => `
+        <div class="sub-row ${s.done ? "is-done" : ""}" data-sub="${esc(s.id)}">
+          <button type="button" class="sub-check" data-act="toggle" aria-label="${esc(t("subToggle"))}">
+            <i class="bi ${s.done ? "bi-check-square-fill" : "bi-square"}"></i>
+          </button>
+          <input class="sub-name" value="${esc(s.title)}" data-act="title" />
+          <input class="sub-owner" value="${esc(s.owner || "")}" list="picList"
+                 placeholder="${esc(t("subOwnerPh"))}" data-act="owner" />
+          <input type="date" class="sub-due" value="${s.due ? String(s.due).slice(0,10) : ""}" data-act="due" />
+          <button type="button" class="icon-btn danger" data-act="del" aria-label="${esc(t("subDelete"))}">
+            <i class="bi bi-trash3"></i>
+          </button>
+        </div>`).join("")
+    : `<div class="sub-empty">${esc(t("subNone"))}</div>`;
+
+  // Nhắc khi thiếu ngày bắt đầu — không có nó thì không đo được lệch tiến độ.
+  el("subHint").textContent = list.length && p && !p.timeline_start ? t("subNeedStart") : "";
+
+  box.querySelectorAll(".sub-row").forEach(row => {
+    const id = row.dataset.sub;
+    row.querySelector('[data-act="toggle"]').addEventListener("click", () => {
+      const s = (S.subs[S.modalId] || []).find(x => String(x.id) === String(id));
+      updateSub(S.modalId, id, { done: !s.done });
+    });
+    row.querySelector('[data-act="del"]').addEventListener("click", () => deleteSub(S.modalId, id));
+    row.querySelector('[data-act="title"]').addEventListener("change", e => {
+      const v = e.target.value.trim();
+      if (v) updateSub(S.modalId, id, { title: v }); else renderSubEditor();
+    });
+    row.querySelector('[data-act="owner"]').addEventListener("change", e =>
+      updateSub(S.modalId, id, { owner: e.target.value.trim() || null }));
+    row.querySelector('[data-act="due"]').addEventListener("change", e =>
+      updateSub(S.modalId, id, { due: e.target.value || null }));
+  });
+}
+
+function submitNewSub() {
+  const input = el("subNew");
+  const v = input.value.trim();
+  if (!v || !S.modalId) return;
+  addSub(S.modalId, v);
+  input.value = "";
+  input.focus();
+}
+
+/* ==========================================================================
+   BẢNG ĐIỂM TỰ NHẬP
+   Người dùng sửa số ngay trong tab "Dữ liệu & hệ thống"; mọi đầu mục được chấm
+   lại tức thì. Đường dẫn kiểu "schedule.ladder.0.points" trỏ thẳng vào object
+   WRI, nên không phải viết tay từng trường hợp — thêm dòng mới vào WRI là ô
+   nhập tự có.
+   ========================================================================== */
+function getByPath(obj, path) {
+  return path.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+}
+function setByPath(obj, path, value) {
+  const keys = path.split(".");
+  const last = keys.pop();
+  const host = keys.reduce((o, k) => o[k], obj);
+  host[last] = value;
+}
+
+/** Đổi một ô điểm rồi chấm lại toàn bộ danh mục. */
+function setWeight(path, raw) {
+  // Ô trống hoặc chữ bậy: giữ nguyên giá trị cũ thay vì tụt về 0.
+  if (String(raw).trim() === "" || !isFinite(Number(raw))) { renderSystem(); return; }
+  const n = Math.max(0, Math.min(100, Math.round(Number(raw))));
+  setByPath(WRI, path, n);
+  saveWeights();
+  S.all = enrich(S.all);
+  applyFilters();
+}
+
+/** Đổi một ngưỡng (số ngày, mức tập trung…). */
+function setThreshold(key, raw) {
+  const n = Number(raw);
+  if (!isFinite(n) || n < 0) return;
+  THRESHOLDS[key] = n;
+  saveWeights();
+  S.all = enrich(S.all);
+  applyFilters();
+}
+
+/** Đổi mốc "bắt đầu coi là lệch": dịch cả ba bậc để giữ nguyên khoảng cách
+    giữa chúng, thay vì bắt người dùng sửa từng bậc một. */
+function setDriftGate(raw) {
+  const n = Math.max(1, Math.min(99, Math.round(Number(raw))));
+  if (!isFinite(n)) return;
+  const last = WRI.drift.ladder.length - 1;
+  const shift = n - WRI.drift.ladder[last].gap;
+  WRI.drift.ladder.forEach(l => { l.gap = Math.max(1, Math.min(99, l.gap + shift)); });
+  saveWeights();
+  S.all = enrich(S.all);
+  applyFilters();
+}
+
+function saveWeights() {
+  try {
+    localStorage.setItem("xp-weights", JSON.stringify({ wri: WRI, th: THRESHOLDS }));
+  } catch (e) { /* mở bằng file:// có thể bị chặn — chỉ mất khi tải lại */ }
+}
+
+function loadWeights() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("xp-weights") || "{}");
+    if (raw.wri) mergeNumbers(WRI, raw.wri);   // nhận cả points lẫn gap
+    if (raw.th) THRESHOLD_DEFAULT_KEYS.forEach(k => {
+      if (typeof raw.th[k] === "number" && isFinite(raw.th[k])) THRESHOLDS[k] = raw.th[k];
+    });
+  } catch (e) { /* dữ liệu hỏng thì dùng mặc định */ }
+}
+
+/** Chỉ nhận lại các GIÁ TRỊ SỐ từ bản đã lưu, giữ nguyên cấu trúc hiện tại.
+    Nhờ vậy bản lưu cũ không làm mất thành phần mới thêm vào sau này. */
+function mergeNumbers(target, saved) {
+  if (!saved || typeof saved !== "object") return;
+  Object.keys(target).forEach(k => {
+    if (typeof target[k] === "number" && typeof saved[k] === "number" && isFinite(saved[k])) {
+      target[k] = saved[k];
+    } else if (target[k] && typeof target[k] === "object") {
+      mergeNumbers(target[k], saved[k]);
+    }
+  });
+}
+
+function resetWeights() {
+  if (!confirm(t("weightResetConfirm"))) return;
+  mergeNumbers(WRI, WRI_DEFAULT);
+  THRESHOLDS.dueSoonDays = 7;
+  THRESHOLDS.hhiConcentrated = 1.35;
+  THRESHOLDS.hhiTight = 1.80;
+  THRESHOLDS.dataThin = 0.50;
+  saveWeights();
+  S.all = enrich(S.all);
+  applyFilters();
+  toast(t("weightReset"), "ok");
+}
+
+/* ==========================================================================
+   TIẾN ĐỘ TỪ HẠNG MỤC NHỎ
+   donePct    — bao nhiêu phần khối lượng đã xong (đếm theo số hạng mục)
+   elapsedPct — bao nhiêu phần thời gian đã trôi qua, null nếu thiếu mốc
+   Hai con số này đặt cạnh nhau chính là thước đo "lệch tiến độ".
+   ========================================================================== */
+function progressOf(p) {
+  const subs = S.subs[p.id] || [];
+  const total = subs.length;
+  const done = subs.filter(s => s.done).length;
+  const donePct = total ? Math.round(done / total * 100) : (p.status === "Done" ? 100 : 0);
+
+  let elapsedPct = null;
+  const s = toDate(p.timeline_start), e = toDate(p.timeline_end);
+  if (s && e && e >= s && p.status !== "Done") {
+    const span = Math.max(1, daysBetween(s, e));
+    elapsedPct = Math.min(100, Math.max(0, Math.round(daysBetween(s, today0()) / span * 100)));
+  }
+  return { total, done, donePct, elapsedPct,
+           overdueSubs: subs.filter(x => !x.done && x.due && toDate(x.due) < today0()).length };
 }
 
 /** Các trường bị phạt khi thiếu. "Bước tiếp theo" cố ý KHÔNG nằm trong đây. */
@@ -345,6 +589,22 @@ function digest(items) {
   // Con số hiện trên thẻ tab "Dữ liệu & hệ thống".
   d.itemsNeedingData = items.filter(p => fields.some(k => !p[k] || !String(p[k]).trim())).length;
 
+  // --- Tiến độ toàn danh mục ---
+  // Cộng theo SỐ HẠNG MỤC, không lấy trung bình phần trăm: đầu mục 10 việc phải
+  // nặng hơn đầu mục 2 việc, lấy trung bình sẽ làm hai cái ngang nhau.
+  d.subTotal = 0; d.subDone = 0; d.itemsWithSubs = 0; d.lateSubs = 0;
+  let elSum = 0, elCount = 0;
+  items.forEach(p => {
+    const pr = p._wri.progress;
+    if (!pr || !pr.total) return;
+    d.itemsWithSubs++; d.subTotal += pr.total; d.subDone += pr.done; d.lateSubs += pr.overdueSubs;
+    if (pr.elapsedPct !== null) { elSum += pr.elapsedPct; elCount++; }
+  });
+  d.donePct    = d.subTotal ? Math.round(d.subDone / d.subTotal * 100) : null;
+  d.elapsedPct = elCount ? Math.round(elSum / elCount) : null;
+  d.driftGap   = (d.donePct !== null && d.elapsedPct !== null) ? d.elapsedPct - d.donePct : null;
+  d.drifting   = d.driftGap !== null && d.driftGap >= minDriftGap();
+
   return d;
 }
 
@@ -372,6 +632,13 @@ function execSentence(d) {
   }
 
   if (d.counts.noDue) parts.push(E.noDue(d.counts.noDue));
+
+  // Mệnh đề tiến độ — chỉ nói khi thật sự có hạng mục nhỏ để nói.
+  if (d.subTotal) {
+    parts.push(d.drifting
+      ? E.drift(d.donePct, d.subDone, d.subTotal, d.elapsedPct, d.driftGap)
+      : E.progress(d.donePct, d.subDone, d.subTotal));
+  }
 
   parts.push(d.completeness < THRESHOLDS.dataThin * 100 ? E.dataThin(d.completeness) : E.dataOk(d.completeness));
   return parts.join(" ");
@@ -459,7 +726,81 @@ async function loadData() {
     S.links = [];
     S.all.forEach(p => (p.blocked_by || []).forEach(src => S.links.push({ from: src, to: p.id, saved: true })));
   }
+
+  await loadSubtasks();
+  S.all = enrich(S.all);       // chấm lại sau khi đã biết tiến độ
   afterLoad();
+}
+
+/** Nạp hạng mục nhỏ. Bảng chưa tồn tại thì app vẫn chạy, chỉ là không có tiến độ. */
+async function loadSubtasks() {
+  S.subs = {};
+  if (S.demo) { DEMO_SUBS.forEach(addSubToStore); S.hasSubs = true; return; }
+
+  const { data, error } = await S.sb.from("subtasks").select("*").order("sort_order", { ascending: true });
+  if (error) { S.hasSubs = false; return; }   // chưa chạy SQL — bỏ qua, không báo lỗi ồn ào
+  S.hasSubs = true;
+  (data || []).forEach(addSubToStore);
+}
+
+function addSubToStore(s) {
+  (S.subs[s.project_id] = S.subs[s.project_id] || []).push(s);
+}
+
+/* ==========================================================================
+   GHI HẠNG MỤC NHỎ
+   Mọi thao tác đều cập nhật màn hình trước rồi mới gửi lên, và hoàn tác nếu
+   máy chủ báo lỗi — giao diện không bao giờ hiển thị thứ chưa lưu được.
+   ========================================================================== */
+async function addSub(projectId, title) {
+  const clean = String(title || "").trim();
+  if (!clean) return;
+  const list = S.subs[projectId] = S.subs[projectId] || [];
+  const row = { id: "tmp-" + Date.now(), project_id: projectId, title: clean,
+                done: false, owner: null, due: null, sort_order: list.length };
+
+  if (S.demo || !S.hasSubs) { list.push(row); afterSubChange(projectId); return; }
+
+  const { data, error } = await S.sb.from("subtasks")
+    .insert([{ project_id: projectId, title: clean, sort_order: list.length }]).select();
+  if (error) { toast(t("errSave")(error.message), "err"); return; }
+  list.push((data && data[0]) || row);
+  afterSubChange(projectId);
+}
+
+async function updateSub(projectId, subId, patch) {
+  const list = S.subs[projectId] || [];
+  const s = list.find(x => String(x.id) === String(subId));
+  if (!s) return;
+
+  const before = {};
+  Object.keys(patch).forEach(k => { before[k] = s[k]; });
+  Object.assign(s, patch);
+  afterSubChange(projectId);
+
+  if (S.demo || !S.hasSubs || String(subId).startsWith("tmp-")) return;
+  const { error } = await S.sb.from("subtasks").update(patch).eq("id", subId);
+  if (error) { Object.assign(s, before); afterSubChange(projectId); toast(t("errSave")(error.message), "err"); }
+}
+
+async function deleteSub(projectId, subId) {
+  const list = S.subs[projectId] || [];
+  const i = list.findIndex(x => String(x.id) === String(subId));
+  if (i < 0) return;
+  const [removed] = list.splice(i, 1);
+  afterSubChange(projectId);
+
+  if (S.demo || !S.hasSubs || String(subId).startsWith("tmp-")) return;
+  const { error } = await S.sb.from("subtasks").delete().eq("id", subId);
+  if (error) { list.splice(i, 0, removed); afterSubChange(projectId); toast(t("errSave")(error.message), "err"); }
+}
+
+/** Sau mỗi thay đổi: chấm lại đúng đầu mục đó rồi vẽ lại cả trang. */
+function afterSubChange(projectId) {
+  const p = S.all.find(x => String(x.id) === String(projectId));
+  if (p) p._wri = computeWRI(p);
+  applyFilters();
+  if (el("subList") && S.modalId === projectId) renderSubEditor();
 }
 
 function afterLoad() {
@@ -510,6 +851,7 @@ function openModal(id) {
   el("mStream").disabled = !S.hasStream;
   el("streamHint").textContent = S.hasStream ? t("streamHintOn") : t("streamHintOff");
 
+  renderSubEditor();
   try { ensureStreamManageUI(); } catch (e) { console.warn("Không dựng được khu quản lý luồng:", e); }
   renderWriPreview();
 
@@ -878,6 +1220,7 @@ function exportCsv() {
 async function boot() {
   initLang();
   applyStaticText();
+  loadWeights();
   loadStreamPrefs();
   bindEvents();
 
@@ -919,6 +1262,10 @@ function bindEvents() {
   el("btnCsv").addEventListener("click", exportCsv);
   el("btnPrint").addEventListener("click", () => window.print());
   el("itemForm").addEventListener("submit", saveItem);
+  el("btnSubAdd").addEventListener("click", submitNewSub);
+  el("subNew").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); submitNewSub(); }   // Enter thêm việc, không gửi form
+  });
   el("btnDelete").addEventListener("click", deleteItem);
   el("btnNewStream").addEventListener("click", () => createStream());
 
@@ -1000,9 +1347,25 @@ function switchTab(view) {
 /* ==========================================================================
    13. DỮ LIỆU MẪU — chỉ dùng khi chưa điền khóa Supabase
    ========================================================================== */
+
+/* Hạng mục nhỏ mẫu — chỉ dùng khi chưa nối Supabase. */
+const DEMO_SUBS = [
+  { id:"s1",  project_id:"d2", title:"Chốt bộ câu hỏi khảo sát",     done:true,  owner:"Khai Vo",      due:"2026-07-28", sort_order:0 },
+  { id:"s2",  project_id:"d2", title:"Gửi link cho 300 doanh nghiệp", done:true,  owner:"Khai Vo",      due:"2026-08-02", sort_order:1 },
+  { id:"s3",  project_id:"d2", title:"Thu đủ 300 phản hồi",           done:false, owner:"Khai Vo",      due:"2026-08-05", sort_order:2 },
+  { id:"s4",  project_id:"d2", title:"Phân tích và dựng báo cáo",     done:false, owner:"Heilyn Nguyen",due:"2026-08-07", sort_order:3 },
+  { id:"s5",  project_id:"d2", title:"Bàn giao kết quả cho MSB",      done:false, owner:null,           due:null,         sort_order:4 },
+  { id:"s6",  project_id:"d4", title:"Rà soát điều khoản pháp lý",    done:true,  owner:"Duong Ho",     due:"2026-08-10", sort_order:0 },
+  { id:"s7",  project_id:"d4", title:"Thống nhất mức chia doanh thu", done:true,  owner:"Duong Ho",     due:"2026-08-14", sort_order:1 },
+  { id:"s8",  project_id:"d4", title:"Trình ban lãnh đạo MSB",        done:false, owner:"Khai Vo",      due:"2026-08-18", sort_order:2 },
+  { id:"s9",  project_id:"d4", title:"Ký kết chính thức",             done:false, owner:"Duong Ho",     due:"2026-08-25", sort_order:3 },
+  { id:"s10", project_id:"d1", title:"Gộp mã nguồn hai nhánh",        done:true,  owner:"Tai Vo",       due:"2026-08-05", sort_order:0 },
+  { id:"s11", project_id:"d1", title:"Kiểm thử toàn bộ luồng",        done:false, owner:"Tai Vo",       due:"2026-08-08", sort_order:1 },
+  { id:"s12", project_id:"d1", title:"Chuyển tên miền",               done:false, owner:"Tai Vo",       due:"2026-08-09", sort_order:2 }
+];
 const DEMO_ROWS = [
-  { id:"d1", title:"Merge xperise AI to xperise.com", description:null, timeline_start:null, timeline_end:"2026-08-09", pic:"Tai Vo", priority:"High", status:"In Progress", next_steps:null },
-  { id:"d2", title:"MSB SpendOS Survey", description:"Handover online link to MSB", timeline_start:null, timeline_end:"2026-08-07", pic:"Khai Vo", priority:"High", status:"In Progress", next_steps:"Done survey for 300-500 companies - 1 week" },
+  { id:"d1", title:"Merge xperise AI to xperise.com", description:null, timeline_start:"2026-07-25", timeline_end:"2026-08-09", pic:"Tai Vo", priority:"High", status:"In Progress", next_steps:null },
+  { id:"d2", title:"MSB SpendOS Survey", description:"Handover online link to MSB", timeline_start:"2026-07-20", timeline_end:"2026-08-07", pic:"Khai Vo", priority:"High", status:"In Progress", next_steps:"Done survey for 300-500 companies - 1 week" },
   { id:"d3", title:"SpendOS + Bank product final version", description:"Finalize after analyzing survey data", timeline_start:null, timeline_end:"2026-08-20", pic:"Heilyn Nguyen", priority:"High", status:"In Progress", next_steps:null },
   { id:"d4", title:"Partnership Agreement: Xperise + MSB", description:null, timeline_start:null, timeline_end:"2026-08-25", pic:"Duong Ho, Khai Vo", priority:"High", status:"In Progress", next_steps:null },
   { id:"d5", title:"Pilot model US market - Enterprise Spend Intelligence Brain - CC capital: Insignia", description:null, timeline_start:"2026-08-20", timeline_end:"2026-08-20", pic:"Duong Ho", priority:"Medium", status:"In Progress", next_steps:null },

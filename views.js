@@ -89,6 +89,19 @@ function renderKpis(d) {
       color: d.completeness < THRESHOLDS.dataThin*100 ? "#EA8C0B" : "#0D9488", meter: d.completeness }
   ];
 
+  // Ô tiến độ chỉ hiện khi đã có hạng mục nhỏ — chưa chia nhỏ thì không bày ô rỗng.
+  if (d.subTotal) {
+    cards.splice(2, 0, {
+      label: t("kpiProgress"),
+      num: d.donePct, unit: "%",
+      sub: d.elapsedPct !== null ? t("kpiProgressSub")(d.subDone, d.subTotal, d.elapsedPct)
+                                 : t("kpiProgressSubPlain")(d.subDone, d.subTotal),
+      color: d.drifting ? "#E11D48" : "#0D9488",
+      meter: d.donePct,
+      flag: d.drifting ? "drifting" : null
+    });
+  }
+
   el("kpiStrip").innerHTML = cards.map(c => `
     <div class="kpi" style="border-left-color:${c.color}" ${c.flag ? `data-flag="${c.flag}"` : ""}>
       <div class="kpi-label">${esc(c.label)}</div>
@@ -584,6 +597,42 @@ async function removeLink(index) {
    ========================================================================== */
 function avgWri(list) { return list.length ? list.reduce((s,p) => s + p._wri.score, 0) / list.length : 0; }
 
+/** Tiến độ cộng dồn của một luồng: cộng tất cả hạng mục nhỏ trong luồng lại.
+    Đếm theo SỐ HẠNG MỤC chứ không lấy trung bình phần trăm — đầu mục 10 việc
+    phải nặng hơn đầu mục 2 việc, lấy trung bình sẽ làm hai cái ngang nhau. */
+function streamProgressHtml(list) {
+  let total = 0, done = 0, elapsedSum = 0, elapsedCount = 0, lateSubs = 0;
+  list.forEach(p => {
+    const pr = p._wri.progress;
+    total += pr.total; done += pr.done; lateSubs += pr.overdueSubs;
+    if (pr.total && pr.elapsedPct !== null) { elapsedSum += pr.elapsedPct; elapsedCount++; }
+  });
+  if (!total) return "";
+
+  const donePct = Math.round(done / total * 100);
+  const elapsedPct = elapsedCount ? Math.round(elapsedSum / elapsedCount) : null;
+  const gap = elapsedPct === null ? null : elapsedPct - donePct;
+  const minGap = WRI.drift.ladder[WRI.drift.ladder.length - 1].gap;
+  const drifting = gap !== null && gap >= minGap;
+
+  return `<div class="stream-prog">
+    <div class="sp-head">
+      <span>${esc(t("progressLabel"))}</span>
+      <strong>${donePct}<small>%</small></strong>
+    </div>
+    <div class="sp-bar">
+      <i style="width:${donePct}%;background:${drifting ? "var(--critical)" : "var(--stable)"}"></i>
+      ${elapsedPct !== null ? `<b style="left:${elapsedPct}%"></b>` : ""}
+    </div>
+    <div class="sp-legend">
+      <span><i style="background:${drifting ? "var(--critical)" : "var(--stable)"}"></i>${esc(t("subsDone")(done, total))}</span>
+      ${elapsedPct !== null ? `<span><i class="tick"></i>${esc(t("timeElapsed")(elapsedPct))}</span>` : ""}
+    </div>
+    ${drifting ? `<div class="sp-alert"><i class="bi bi-exclamation-triangle-fill"></i>
+      <span>${esc(t("driftAlert")(gap, elapsedPct, donePct))}${lateSubs ? " " + esc(t("driftLateSubs")(lateSubs)) : ""}</span></div>` : ""}
+  </div>`;
+}
+
 function renderStreams() {
   const groups = {};
   S.view.forEach(p => (groups[p._stream.id] = groups[p._stream.id] || []).push(p));
@@ -622,6 +671,8 @@ function renderStreams() {
           <span class="pill plain" style="background:var(--surface-2);color:var(--ink-2)">${list.length} ${esc(t("itemsUnit"))}</span>
         </div>
       </div>
+      ${streamProgressHtml(list)}
+
       <div class="stream-stats">
         <div class="stat-box">
           <div class="stat-label">${esc(t("streamLead"))}</div>
@@ -730,6 +781,7 @@ function renderBoard() {
             ${picsOf(p).slice(0,2).map(n => avatar(n,"sm")).join("")}
             <span>${esc(picsOf(p)[0] || t("unassigned"))}</span>
             <span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span>
+            ${p._wri.progress.total ? `<span class="kcard-prog"><i style="width:${p._wri.progress.donePct}%"></i><b>${p._wri.progress.done}/${p._wri.progress.total}</b></span>` : ""}
             <span>${esc(reasonText(p._wri))}</span>
           </div></div>`).join("") : '<div class="col-empty">—</div>'}
     </div>`;
@@ -755,6 +807,40 @@ function renderBoard() {
    ========================================================================== */
 function destroyTable() { if (itemsTable) { itemsTable.destroy(); itemsTable = null; $("#itemsTable tbody").empty(); } }
 
+/** Chèn dòng con vào bảng cho những đầu mục đang mở rộng. */
+function paintSubRows() {
+  if (!itemsTable) return;
+  itemsTable.rows().every(function () {
+    const r = this.data();
+    if (S.expanded[r.id]) { this.child(subRowHtml(r.id)).show(); bindSubRow(this.child(), r.id); }
+    else if (this.child.isShown()) this.child.hide();
+  });
+}
+
+function subRowHtml(projectId) {
+  const list = S.subs[projectId] || [];
+  return `<div class="subrow">
+    ${list.map(s => `
+      <div class="subrow-item ${s.done ? "is-done" : ""}" data-sub="${esc(s.id)}">
+        <i class="bi ${s.done ? "bi-check-square-fill" : "bi-square"}"></i>
+        <span class="subrow-title">${esc(s.title)}</span>
+        <span class="subrow-owner">${s.owner ? avatar(s.owner, "sm") : ""}</span>
+        <span class="subrow-due ${!s.done && s.due && toDate(s.due) < today0() ? "is-late" : ""}">${s.due ? fmtDate(s.due) : "—"}</span>
+      </div>`).join("")}
+    <button class="subrow-add" data-open="${esc(projectId)}"><i class="bi bi-plus-lg"></i> ${esc(t("subAdd"))}</button>
+  </div>`;
+}
+
+function bindSubRow(node, projectId) {
+  const $n = $(node);
+  $n.find(".subrow-item").off("click").on("click", function () {
+    const id = this.getAttribute("data-sub");
+    const s = (S.subs[projectId] || []).find(x => String(x.id) === String(id));
+    if (s) updateSub(projectId, id, { done: !s.done });     // tick ngay trong bảng
+  });
+  $n.find(".subrow-add").off("click").on("click", function () { focusItem(this.getAttribute("data-open")); });
+}
+
 function renderList() {
   el("listCount").textContent = S.view.length;
   const rows = S.view.map(p => ({
@@ -762,17 +848,38 @@ function renderList() {
     due: p.timeline_end || "9999-12-31",
     priority: { "High":1, "Medium":2, "Low":3 }[p.priority] || 9,
     status: { "Open":1, "In Progress":2, "Done":3 }[p.status] || 9,
-    next: p.next_steps || ""
+    next: p.next_steps || "", prog: 0
   }));
 
-  if (itemsTable) { itemsTable.clear().rows.add(rows).draw(false); return; }
+  if (itemsTable) { itemsTable.clear().rows.add(rows).draw(false); paintSubRows(); return; }
 
   itemsTable = new DataTable("#itemsTable", {
-    data: rows, pageLength: 25, order: [[1, "desc"]],
+    data: rows, pageLength: 25, order: [[2, "desc"]],   // cột Rủi ro dịch sang phải 1 vì có thêm cột Tiến độ
     columns: [
-      { data: "title", render: (v, ty, r) => ty !== "display" ? v :
-        `<div class="t-title" data-open="${esc(r.id)}">${esc(v)}</div>` +
-        (r.p.description ? `<div class="t-desc">${esc(String(r.p.description).slice(0,90))}</div>` : "") },
+      { data: "title", render: (v, ty, r) => ty !== "display" ? v : (() => {
+          const n = (S.subs[r.id] || []).length;
+          const caret = n
+            ? `<button class="row-toggle" data-expand="${esc(r.id)}" aria-label="${esc(t("expandRow"))}"><i class="bi bi-chevron-${S.expanded[r.id] ? "down" : "right"}"></i></button>`
+            : `<span class="row-toggle is-empty"></span>`;
+          return `<div class="t-titlewrap">${caret}<div>
+              <div class="t-title" data-open="${esc(r.id)}">${esc(v)}</div>
+              ${r.p.description ? `<div class="t-desc">${esc(String(r.p.description).slice(0,90))}</div>` : ""}
+            </div></div>`;
+        })() },
+      // --- Tiến độ: vạch dọc là mốc thời gian đã trôi, để thấy ngay lệch tiến độ ---
+      { data: "prog", render: (v, ty, r) => {
+          const pr = r.p._wri.progress;
+          if (ty !== "display") return pr.total ? pr.donePct : -1;
+          if (!pr.total) return `<span class="t-muted">${esc(t("noSubs"))}</span>`;
+          const lastGap = WRI.drift.ladder[WRI.drift.ladder.length - 1].gap;
+          const late = r.p._wri.driftGap !== null && r.p._wri.driftGap >= lastGap;
+          return `<span class="prog-cell">
+            <span class="prog-bar">
+              <i style="width:${pr.donePct}%;background:${late ? "var(--critical)" : "var(--stable)"}"></i>
+              ${pr.elapsedPct !== null ? `<b style="left:${pr.elapsedPct}%"></b>` : ""}
+            </span>
+            <span class="prog-num">${pr.done}/${pr.total}</span></span>`;
+        } },
       { data: "wri", render: (v, ty, r) => ty !== "display" ? v : (() => {
           const b = r.p._wri.band;
           return `<span class="wri-cell"><span class="pill" style="background:${b.soft};color:${b.color}">${v}</span>
@@ -808,6 +915,13 @@ function renderList() {
     }
   });
   $("#itemsTable tbody").on("click", "[data-open]", function () { focusItem(this.getAttribute("data-open")); });
+
+  $("#itemsTable tbody").on("click", "[data-expand]", function (e) {
+    e.stopPropagation();
+    const id = this.getAttribute("data-expand");
+    S.expanded[id] = !S.expanded[id];
+    renderList();
+  });
 
   /* --- Sửa nhanh: ô chọn đổi là lưu luôn --- */
   $("#itemsTable tbody").on("change", ".cell-pick", function () {
@@ -869,24 +983,53 @@ function renderSystem() {
 
   /* Bảng công thức dựng thẳng từ object WRI — kể cả trần điểm cũng được tính
      ra, nên sửa bảng điểm là phần giải thích tự khớp lại. */
-  el("formulaIntro").textContent = t("formulaIntro")(4, WRI.cap);
+  el("formulaIntro").textContent = t("formulaIntro")(5, WRI.cap);
 
+  /* Mỗi dòng mang một ĐƯỜNG DẪN trỏ thẳng vào object WRI, ví dụ
+     "schedule.ladder.0.points". Nhờ vậy ô nhập tự biết phải sửa số nào —
+     thêm bậc mới vào bảng điểm là có ngay ô nhập, không phải viết thêm code. */
   const blocks = [
     { key: "schedule", rows:
-      [[t(WRI.schedule.noDue.labelKey), WRI.schedule.noDue.points],
-       [t(WRI.schedule.overdue.labelKey), WRI.schedule.overdue.points]]
-      .concat(WRI.schedule.ladder.map(s => [t("fWithin")(s.days), s.points]))
-      .concat([[t(WRI.schedule.beyond.labelKey), WRI.schedule.beyond.points]]) },
-    { key: "priority", rows: Object.entries(WRI.priority.points) },
-    { key: "status",   rows: Object.entries(WRI.status.points) },
-    { key: "data",     rows: WRI.data.fields.map(f => [t(f.labelKey), f.points]) }
+      [[t(WRI.schedule.noDue.labelKey),   WRI.schedule.noDue.points,   "schedule.noDue.points"],
+       [t(WRI.schedule.overdue.labelKey), WRI.schedule.overdue.points, "schedule.overdue.points"]]
+      .concat(WRI.schedule.ladder.map((s, i) => [t("fWithin")(s.days), s.points, `schedule.ladder.${i}.points`]))
+      .concat([[t(WRI.schedule.beyond.labelKey), WRI.schedule.beyond.points, "schedule.beyond.points"]]) },
+    { key: "priority", rows: Object.keys(WRI.priority.points).map(k => [k, WRI.priority.points[k], `priority.points.${k}`]) },
+    { key: "status",   rows: Object.keys(WRI.status.points).map(k => [k, WRI.status.points[k], `status.points.${k}`]) },
+    { key: "data",     rows: WRI.data.fields.map((f, i) => [t(f.labelKey), f.points, `data.fields.${i}.points`]) },
+    { key: "drift",    rows: WRI.drift.ladder.map((l, i) => [t(l.labelKey), l.points, `drift.ladder.${i}.points`])
+                             .concat([[t(WRI.drift.onTrack.labelKey), WRI.drift.onTrack.points, "drift.onTrack.points"]]) }
   ];
 
   el("formulaGrid").innerHTML = blocks.map((b, i) => `
     <div class="f-card">
       <div class="f-head"><span class="f-name">${i+1} · ${esc(t(WRI[b.key].labelKey))}</span><span class="f-range">0–${componentMax(b.key)}</span></div>
-      ${b.rows.map(([k, v]) => `<div class="f-row"><span>${esc(k)}</span><b>+${v}</b></div>`).join("")}
+      ${b.rows.map(([k, val, path]) => `<div class="f-row">
+          <span>${esc(k)}</span>
+          <input type="number" class="f-input" min="0" max="100" step="1" value="${val}" data-w="${path}" aria-label="${esc(k)}" />
+        </div>`).join("")}
+      ${b.key === "drift" ? `<div class="f-note">${esc(t("driftNote"))}</div>` : ""}
     </div>`).join("");
+
+  // Sửa số là chấm lại toàn bộ danh mục ngay.
+  el("formulaGrid").querySelectorAll(".f-input").forEach(inp => {
+    inp.addEventListener("change", e => setWeight(e.target.dataset.w, e.target.value));
+  });
+
+  // Các ngưỡng cũng cho sửa: số ngày "sắp đến hạn" và mức lệch bắt đầu cảnh báo.
+  el("thresholdRow").innerHTML = `
+    <label class="th-item"><span>${esc(t("thDueSoon"))}</span>
+      <input type="number" class="f-input" min="1" max="90" step="1" value="${THRESHOLDS.dueSoonDays}" data-th="dueSoonDays" /></label>
+    <label class="th-item"><span>${esc(t("thDrift"))}</span>
+      <input type="number" class="f-input" min="1" max="99" step="1" value="${minDriftGap()}" data-th="driftGap" /></label>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnResetWeights">${esc(t("weightResetBtn"))}</button>`;
+
+  el("thresholdRow").querySelectorAll("[data-th]").forEach(inp =>
+    inp.addEventListener("change", e => {
+      const k = e.target.dataset.th;
+      if (k === "driftGap") setDriftGate(e.target.value); else setThreshold(k, e.target.value);
+    }));
+  el("btnResetWeights").addEventListener("click", resetWeights);
 
   el("bandLegend").innerHTML = BANDS.map((b, i) => {
     const hi = i === 0 ? 100 : BANDS[i-1].min - 1;
