@@ -153,8 +153,10 @@ function renderRiskMap() {
     const cx = p._wri.daysLeft === null ? noDueX : x(p._wri.daysLeft);
     const cy = y(p._wri.score);
     const r = size[p.priority] || 6;
-    svg += `<g class="dot" data-id="${esc(p.id)}"><title>${esc(p.title)} — ${p._wri.score} · ${esc(reasonText(p._wri))}</title>
-      <rect x="${cx-r}" y="${cy-r}" width="${r*2}" height="${r*2}" rx="2.5" transform="rotate(45 ${cx} ${cy})" fill="${p._wri.band.color}" opacity=".92"/>
+    const dl = isDrifting(p);
+    svg += `<g class="dot${dl ? " is-drift" : ""}" data-id="${esc(p.id)}"><title>${esc(p.title)} — ${p._wri.score} · ${esc(reasonText(p._wri))}</title>
+      <rect x="${cx-r}" y="${cy-r}" width="${r*2}" height="${r*2}" rx="2.5" transform="rotate(45 ${cx} ${cy})" fill="${p._wri.band.color}" opacity=".92"
+            ${dl ? 'stroke="#12281A" stroke-width="1.6"' : ""}/>
       <text class="dot-num" x="${cx}" y="${cy+3}" text-anchor="middle">${p._wri.score}</text></g>`;
   });
 
@@ -168,21 +170,99 @@ function renderRiskMap() {
 /* ==========================================================================
    5 VIỆC NÊN CHẠM TRƯỚC
    ========================================================================== */
+/* ==========================================================================
+   HIỂN THỊ HẠNG MỤC CON — dùng chung cho mọi màn hình
+   Một chỗ định nghĩa, mọi nơi hiện giống nhau; sửa ở đây là đổi toàn bộ.
+   ========================================================================== */
+
+/** Có bị chậm so với lịch không (đã chia nhỏ + đủ mốc thời gian). */
+function isDrifting(p) {
+  return p._wri.driftGap !== null && p._wri.driftGap >= minDriftGap();
+}
+
+/** Huy hiệu "2/5" gọn, kèm thanh nhỏ. Trả về "" nếu đầu mục chưa chia nhỏ. */
+function progBadge(p, opts) {
+  const pr = p._wri.progress;
+  if (!pr.total) return "";
+  const late = isDrifting(p);
+  const col = late ? "var(--critical)" : "var(--stable)";
+  const bar = (opts && opts.bar === false) ? "" :
+    `<span class="pb-bar"><i style="width:${pr.donePct}%;background:${col}"></i>
+       ${pr.elapsedPct !== null ? `<b style="left:${pr.elapsedPct}%"></b>` : ""}</span>`;
+  return `<span class="prog-badge${late ? " is-late" : ""}" title="${esc(t("progTip")(pr.done, pr.total, pr.donePct, pr.elapsedPct))}">
+      ${bar}<span class="pb-num">${pr.done}/${pr.total}</span></span>`;
+}
+
+/** Vài hạng mục con chưa xong, xếp việc quá hạn lên trước. */
+function openSubs(projectId, limit) {
+  const list = (S.subs[projectId] || []).filter(s => !s.done);
+  const over = s => s.due && toDate(s.due) < today0();
+  list.sort((a, b) => (over(b) ? 1 : 0) - (over(a) ? 1 : 0));
+  return limit ? list.slice(0, limit) : list;
+}
+
+/** Danh sách hạng mục con chưa xong, dạng dòng nhỏ — dùng trong thẻ và bảng. */
+function subLinesHtml(projectId, limit) {
+  const all = (S.subs[projectId] || []).filter(s => !s.done);
+  if (!all.length) return "";
+  const show = openSubs(projectId, limit);
+  return `<div class="sub-mini">${show.map(s => {
+    const late = s.due && toDate(s.due) < today0();
+    return `<div class="sm-line${late ? " is-late" : ""}">
+      <i class="bi bi-square"></i>
+      <span class="sm-txt">${esc(s.title)}</span>
+      ${s.owner ? avatar(s.owner, "sm") : ""}
+      <span class="sm-due">${s.due ? fmtDate(s.due) : ""}</span></div>`;
+  }).join("")}${all.length > show.length
+    ? `<div class="sm-more">${esc(t("subMore")(all.length - show.length))}</div>` : ""}</div>`;
+}
+
+/** Gom hạng mục con của một nhóm đầu mục — dùng cho luồng và cho từng người. */
+function rollup(items) {
+  let total = 0, done = 0, overdue = 0;
+  items.forEach(p => {
+    const pr = p._wri.progress;
+    total += pr.total; done += pr.done; overdue += pr.overdueSubs;
+  });
+  return { total, done, overdue, donePct: total ? Math.round(done / total * 100) : 0,
+           drifting: items.filter(isDrifting).length };
+}
+
+
+/** Cung tròn quanh nút mạng lưới = phần khối lượng đã xong. */
+function progArc(p, cx, cy, r) {
+  const pr = p._wri.progress;
+  if (!pr.total || !pr.donePct) return "";
+  const frac = Math.min(1, pr.donePct / 100);
+  const col = isDrifting(p) ? "#E11D48" : "#0D9488";
+  if (frac >= 1) return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${col}" stroke-width="2"/>`;
+  const a0 = -Math.PI / 2, a1 = a0 + frac * Math.PI * 2;
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+  const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  return `<path d="M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 ${frac > .5 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}"
+     fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
+}
+
 function renderTriage() {
   const top = S.view.filter(p => p.status !== "Done").slice(0, 5);
   if (!top.length) { el("triageList").innerHTML = emptyBox(t("noOpenItems")); return; }
 
   el("triageList").innerHTML = top.map(p => {
     const w = p._wri;
-    const why = w.missing.length
-      ? w.missing.map(k => t(WRI.data.fields.find(f => f.key === k).labelKey)).join(" · ")
-      : (p.next_steps || t("triageAllSet"));
+    // Ưu tiên nói ra việc con đang dở — cụ thể hơn "thiếu mô tả".
+    const nextSub = openSubs(p.id, 1)[0];
+    const why = nextSub
+      ? t("triageNextSub")(nextSub.title)
+      : (w.missing.length
+          ? w.missing.map(k => t(WRI.data.fields.find(f => f.key === k).labelKey)).join(" · ")
+          : (p.next_steps || t("triageAllSet")));
     return `<li data-id="${esc(p.id)}">
       <div class="triage-body">
         <div class="triage-title">${esc(p.title)}</div>
         <div class="triage-why">${esc(why)}</div>
         <div class="triage-meta">
           <span class="pill" style="background:${w.band.soft};color:${w.band.color}">${w.score}</span>
+          ${progBadge(p)}
           <span>${esc(reasonText(w))}</span>
           <span>${picsOf(p).map(n => avatar(n,"sm")).join("")} ${esc(picsOf(p).join(", "))}</span>
         </div>
@@ -217,6 +297,19 @@ function showOwnerDetail(name) {
   const nextDue = mine.filter(p => p.timeline_end)
                       .sort((a, b) => toDate(a.timeline_end) - toDate(b.timeline_end))[0];
 
+  // Hạng mục con GẮN TÊN người này — có thể nằm ở đầu mục do người khác chủ trì,
+  // nên phải quét toàn danh mục chứ không chỉ các đầu mục họ phụ trách.
+  const myOpenSubs = [];
+  S.view.forEach(p => (S.subs[p.id] || []).forEach(s => {
+    if (!s.done && s.owner && s.owner.trim() === name) myOpenSubs.push({ s, p });
+  }));
+  myOpenSubs.sort((a, b) => {
+    const av = a.s.due ? toDate(a.s.due).getTime() : Infinity;
+    const bv = b.s.due ? toDate(b.s.due).getTime() : Infinity;
+    return av - bv;
+  });
+  const roll = rollup(mine);
+
   box.innerHTML = `
     <div class="wl-d-head">
       ${avatar(name, "sm")}<strong>${esc(name)}</strong>
@@ -225,11 +318,23 @@ function showOwnerDetail(name) {
     <div class="wl-d-stats">
       <span>${esc(t("wlAvg"))} <b style="color:${band.color}">${avg}</b></span>
       <span>${esc(t("wlNext"))} <b>${nextDue ? fmtDate(nextDue.timeline_end) : esc(t("wlNextNone"))}</b></span>
+      ${roll.total ? `<span>${esc(t("wlSubs"))} <b>${roll.done}/${roll.total}</b></span>` : ""}
     </div>
+    ${myOpenSubs.length ? `<div class="wl-d-subs">
+      <div class="wl-d-subhead">${esc(t("wlOwnSubs")(myOpenSubs.length))}</div>
+      ${myOpenSubs.slice(0, 3).map(({ s, p }) => {
+        const late = s.due && toDate(s.due) < today0();
+        return `<div class="sm-line${late ? " is-late" : ""}" data-id="${esc(p.id)}">
+          <i class="bi bi-square"></i>
+          <span class="sm-txt">${esc(s.title)}</span>
+          <span class="sm-due">${s.due ? fmtDate(s.due) : "—"}</span></div>`;
+      }).join("")}
+    </div>` : ""}
     ${mine.slice(0, 4).map(p => `
       <div class="wl-d-item" data-id="${esc(p.id)}">
         <span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span>
         <span class="wl-d-title">${esc(p.title)}</span>
+        ${progBadge(p, { bar: false })}
         <span class="wl-d-due">${p.timeline_end ? fmtDate(p.timeline_end) : "—"}</span>
       </div>`).join("")}
     ${mine.length > 4 ? `<div class="wl-d-more">${esc(t("wlMore")(mine.length - 4))}</div>` : ""}`;
@@ -453,7 +558,8 @@ function renderNetwork() {
       const deps = links.filter(l => l.from === p.id).length;
       svg += `<g class="node" data-id="${esc(p.id)}"><title>${esc(p.title)} — ${p._wri.score}</title>
         <rect x="${q.x-r}" y="${q.y-r}" width="${r*2}" height="${r*2}" rx="3" transform="rotate(45 ${q.x} ${q.y})" fill="${p._wri.band.color}"/>
-        ${deps ? `<circle cx="${q.x+r+4}" cy="${q.y-r-2}" r="6" fill="#fff" stroke="#A855F7"/><text class="node-count" x="${q.x+r+4}" y="${q.y-r+1}">${deps}</text>` : ""}</g>`;
+        ${deps ? `<circle cx="${q.x+r+4}" cy="${q.y-r-2}" r="6" fill="#fff" stroke="#A855F7"/><text class="node-count" x="${q.x+r+4}" y="${q.y-r+1}">${deps}</text>` : ""}
+        ${progArc(p, q.x, q.y, r + 5)}</g>`;
     });
     box.innerHTML = svg + `</svg>`;
   }
@@ -691,9 +797,13 @@ function renderStreams() {
         </div>
       </div>
       ${list.map(p => `<div class="stream-item" data-id="${esc(p.id)}">
-        ${picsOf(p).slice(0,2).map(n => avatar(n,"sm")).join("")}
-        <span class="grow">${esc(p.title)}</span>
-        <span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span>
+        <div class="si-main">
+          ${picsOf(p).slice(0,2).map(n => avatar(n,"sm")).join("")}
+          <span class="grow">${esc(p.title)}</span>
+          ${progBadge(p)}
+          <span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span>
+        </div>
+        ${subLinesHtml(p.id, 2)}
       </div>`).join("")}
     </div>`;
   }).join("");
@@ -749,12 +859,20 @@ function renderGantt() {
       } else {
         bar = `<div class="gantt-nodate" style="left:${nowLeft}%;width:${Math.max(8, 96-nowLeft)}%">${esc(t("noDueBar"))}</div>`;
       }
+      // Mốc nhỏ = hạn của từng hạng mục con, đặt đúng vị trí ngày trên thanh.
+      const subMarks = (S.subs[p.id] || []).filter(x => x.due).map(x => {
+        const d = toDate(x.due); if (!d) return "";
+        const late = !x.done && d < now;
+        return `<span class="g-sub${x.done ? " is-done" : late ? " is-late" : ""}"
+          style="left:${posOf(d)}%" title="${esc(x.title)} · ${fmtDate(x.due)}"></span>`;
+      }).join("");
+
       return `<div class="gantt-row" data-id="${esc(p.id)}">
         <div class="gantt-label">
-          <div class="gantt-title">${esc(p.title)}</div>
+          <div class="gantt-title">${esc(p.title)} ${progBadge(p, { bar: false })}</div>
           <div class="gantt-meta">${esc(picsOf(p).join(", "))} · ${e ? fmtDate(p.timeline_end) : esc(t("noDueDate"))}</div>
         </div>
-        <div class="gantt-lane">${ticks}<div class="now-line" style="left:${nowLeft}%;opacity:.32"></div>${bar}</div>
+        <div class="gantt-lane">${ticks}<div class="now-line" style="left:${nowLeft}%;opacity:.32"></div>${bar}${subMarks}</div>
       </div>`;
     }).join("");
 
@@ -781,9 +899,11 @@ function renderBoard() {
             ${picsOf(p).slice(0,2).map(n => avatar(n,"sm")).join("")}
             <span>${esc(picsOf(p)[0] || t("unassigned"))}</span>
             <span class="pill" style="background:${p._wri.band.soft};color:${p._wri.band.color}">${p._wri.score}</span>
-            ${p._wri.progress.total ? `<span class="kcard-prog"><i style="width:${p._wri.progress.donePct}%"></i><b>${p._wri.progress.done}/${p._wri.progress.total}</b></span>` : ""}
+            ${progBadge(p)}
             <span>${esc(reasonText(p._wri))}</span>
-          </div></div>`).join("") : '<div class="col-empty">—</div>'}
+          </div>
+          ${subLinesHtml(p.id, 2)}
+        </div>`).join("") : '<div class="col-empty">—</div>'}
     </div>`;
   }).join("");
 

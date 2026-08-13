@@ -67,7 +67,9 @@ vi: {
   filterCleared: "Đã xóa bộ lọc",
   flags: {
     overdue: "Quá hạn", dueSoon: "Đến hạn trong tuần", critical: "Nguy cấp",
-    highPrio: "Ưu tiên cao", noStart: "Chưa có ngày bắt đầu", noDue: "Chưa đặt hạn"
+    highPrio: "Ưu tiên cao", noStart: "Chưa có ngày bắt đầu", noDue: "Chưa đặt hạn",
+    notStarted: "Chưa khởi động", running: "Đang chạy dở",
+    nearlyDone: "Sắp hoàn tất", drifting: "Chậm so với lịch"
   },
 
   /* --- tổng quan --- */
@@ -248,6 +250,16 @@ vi: {
   subCopySql: "Sao chép SQL tạo bảng",
   sqlCopied: "Đã sao chép SQL",
   sqlCopyFail: "Trình duyệt chặn sao chép — mở tab Dữ liệu & hệ thống để lấy SQL",
+  progTip: (d, tt, dp, ep) => ep === null
+    ? `Đã xong ${d}/${tt} hạng mục nhỏ (${dp}%)`
+    : `Đã xong ${d}/${tt} hạng mục nhỏ (${dp}%) · thời gian đã trôi ${ep}%`,
+  subMore: n => `+${n} hạng mục nhỏ khác`,
+  triageNextSub: title => `Việc con đang dở: ${title}`,
+  wlSubs: "Hạng mục nhỏ",
+  wlOwnSubs: n => `${n} hạng mục nhỏ đứng tên người này`,
+  csvSubHead: ["Đầu mục cha","Luồng","Hạng mục nhỏ","Đã xong","Người phụ trách","Hạn"],
+  errNoOwner: "Đầu mục phải có người phụ trách",
+  errDateOrder: "Hạn chốt đang sớm hơn ngày bắt đầu",
   errSave: m => `Lưu không thành công: ${m}`,
   errLoad: m => `Không đọc được dữ liệu: ${m}`,
   errDelete: m => `Xóa không thành công: ${m}`,
@@ -259,7 +271,7 @@ vi: {
   demoNotice: 'Đang chạy <strong>dữ liệu mẫu</strong> để anh xem trước. Điền <code>SUPABASE_URL</code> và <code>SUPABASE_ANON_KEY</code> ở đầu file <code>app.js</code> để nối vào dữ liệu thật.',
   footNote: "Mọi chỉ số tính trực tiếp từ dữ liệu thật, không ước lượng",
 
-  csvHead: ["Đầu mục","Người phụ trách","Luồng","Ngày bắt đầu","Hạn chốt","Ưu tiên","Trạng thái","Bước tiếp theo","Mô tả","Chỉ số rủi ro","Mức rủi ro"],
+  csvHead: ["Đầu mục","Người phụ trách","Luồng","Ngày bắt đầu","Hạn chốt","Ưu tiên","Trạng thái","Bước tiếp theo","Mô tả","Chỉ số rủi ro","Mức rủi ro","Số hạng mục nhỏ","Đã xong","Tiến độ","Lệch lịch"],
   reason: {
     done: "Đã hoàn thành", noDue: "chưa đặt hạn",
     overdue: n => `quá hạn ${n} ngày`, dueToday: "đến hạn hôm nay", left: n => `còn ${n} ngày`,
@@ -322,7 +334,9 @@ en: {
   filterCleared: "Filters cleared",
   flags: {
     overdue: "Past due", dueSoon: "Due this week", critical: "Critical",
-    highPrio: "High priority", noStart: "No start date", noDue: "No due date"
+    highPrio: "High priority", noStart: "No start date", noDue: "No due date",
+    notStarted: "Not started", running: "In progress",
+    nearlyDone: "Nearly done", drifting: "Behind schedule"
   },
 
   riskMapTitle: "Risk map",
@@ -495,6 +509,16 @@ en: {
   subCopySql: "Copy setup SQL",
   sqlCopied: "SQL copied",
   sqlCopyFail: "Clipboard blocked — open the Data & system tab to copy the SQL",
+  progTip: (d, tt, dp, ep) => ep === null
+    ? `${d}/${tt} subtasks done (${dp}%)`
+    : `${d}/${tt} subtasks done (${dp}%) · ${ep}% of time elapsed`,
+  subMore: n => `+${n} more subtasks`,
+  triageNextSub: title => `Open subtask: ${title}`,
+  wlSubs: "Subtasks",
+  wlOwnSubs: n => `${n} subtasks assigned to this person`,
+  csvSubHead: ["Parent item","Workstream","Subtask","Done","Owner","Due"],
+  errNoOwner: "A work item needs an owner",
+  errDateOrder: "The due date is earlier than the start date",
   errSave: m => `Could not save: ${m}`,
   errLoad: m => `Could not read data: ${m}`,
   errDelete: m => `Could not delete: ${m}`,
@@ -506,7 +530,7 @@ en: {
   demoNotice: 'Running on <strong>sample data</strong> for preview. Fill in <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of <code>app.js</code> to connect real data.',
   footNote: "Every figure computed directly from live data, never estimated",
 
-  csvHead: ["Work item","Owner","Workstream","Start date","Due date","Priority","Status","Next step","Description","Risk index","Risk level"],
+  csvHead: ["Work item","Owner","Workstream","Start date","Due date","Priority","Status","Next step","Description","Risk index","Risk level","Subtasks","Done","Progress","Drift"],
   reason: {
     done: "Complete", noDue: "no due date",
     overdue: n => `${n} days past due`, dueToday: "due today", left: n => `${n} days left`,

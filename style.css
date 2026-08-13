@@ -789,3 +789,61 @@ div.dt-container .dt-paging .dt-paging-button { font-size: 12.5px; border-radius
 }
 .sub-blocked i { font-size: 15px; margin-top: 1px; flex: 0 0 auto; }
 .sub-blocked .link-btn { color: #9B1C33; margin-top: 4px; }
+
+/* ==========================================================================
+   HẠNG MỤC CON XUYÊN SUỐT CÁC MÀN HÌNH
+   ========================================================================== */
+
+/* Huy hiệu tiến độ "2/5" — dùng ở triage, kanban, luồng, dòng thời gian */
+.prog-badge { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.pb-bar {
+  position: relative; width: 34px; height: 4px; border-radius: 3px;
+  background: var(--line-soft); overflow: hidden; display: inline-block;
+}
+.pb-bar i { display: block; height: 100%; border-radius: 3px; }
+.pb-bar b {                       /* vạch mốc thời gian đã trôi */
+  position: absolute; top: -2px; width: 1.5px; height: 8px;
+  background: var(--ink-3); border-radius: 1px;
+}
+.pb-num { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); }
+.prog-badge.is-late .pb-num { color: var(--critical); font-weight: 600; }
+
+/* Danh sách việc con dạng dòng nhỏ */
+.sub-mini { margin-top: 6px; padding-left: 2px; }
+.sm-line {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--ink-3); line-height: 1.9;
+}
+.sm-line i { font-size: 10px; flex: 0 0 auto; }
+.sm-line.is-late { color: var(--critical); }
+.sm-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-due { flex: 0 0 auto; font-family: "JetBrains Mono", monospace; font-size: 10.5px; }
+.sm-more { font-size: 10.5px; color: var(--ink-3); padding-left: 16px; opacity: .8; }
+
+/* Thẻ luồng: mỗi đầu mục thành khối 2 dòng */
+.stream-item { display: block; }
+.si-main { display: flex; align-items: center; gap: 10px; }
+
+/* Khối lượng theo người: phần hạng mục con đứng tên họ */
+.wl-d-subs { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.wl-d-subhead {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 3px;
+}
+.wl-d-subs .sm-line { cursor: pointer; }
+.wl-d-subs .sm-line:hover .sm-txt { color: var(--violet-deep); }
+
+/* Dòng thời gian: mốc hạn của từng việc con trên thanh */
+.g-sub {
+  position: absolute; top: 50%; width: 6px; height: 6px;
+  margin-left: -3px; transform: translateY(-50%) rotate(45deg);
+  background: var(--surface); border: 1.5px solid var(--ink-3); border-radius: 1px;
+}
+.g-sub.is-done { background: var(--stable); border-color: var(--stable); }
+.g-sub.is-late { background: var(--critical); border-color: var(--critical); }
+
+/* Bản đồ rủi ro: chấm có viền đậm = đang chậm lịch */
+.riskmap .dot.is-drift { filter: none; }
+
+/* Kanban: chừa chỗ cho danh sách việc con */
+.kcard .sub-mini { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft); }

@@ -1241,10 +1241,24 @@ function exportCsv() {
   const cell = v => `"${String(v === null || v === undefined ? "" : v).replace(/"/g,'""')}"`;
   const lines = [t("csvHead").map(cell).join(",")];
   S.view.forEach(p => {
+    const pr = p._wri.progress;
     lines.push([p.title, p.pic, p._stream.name, p.timeline_start, p.timeline_end,
                 p.priority, p.status, p.next_steps, p.description,
-                p._wri.score, p._wri.band.label].map(cell).join(","));
+                p._wri.score, p._wri.band.label,
+                pr.total || "", pr.total ? pr.done : "", pr.total ? pr.donePct + "%" : "",
+                p._wri.driftGap === null ? "" : p._wri.driftGap].map(cell).join(","));
   });
+  // Phụ lục: từng hạng mục con, để mở bằng Excel còn lọc được theo đầu mục cha.
+  const subRows = [];
+  S.view.forEach(p => (S.subs[p.id] || []).forEach(s =>
+    subRows.push([p.title, p._stream.name, s.title, s.done ? "x" : "",
+                  s.owner || "", s.due || ""].map(cell).join(","))));
+  if (subRows.length) {
+    lines.push("");
+    lines.push(t("csvSubHead").map(cell).join(","));
+    subRows.forEach(r => lines.push(r));
+  }
+
   const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
