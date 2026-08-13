@@ -375,13 +375,23 @@ function renderSubEditor() {
   });
 }
 
-function submitNewSub() {
+let subAdding = false;      // chặn bấm/Enter dồn dập tạo ra bản ghi trùng
+
+async function submitNewSub() {
   const input = el("subNew");
   const v = input.value.trim();
-  if (!v || !S.modalId) return;
-  addSub(S.modalId, v);
-  input.value = "";
-  input.focus();
+  if (!v || !S.modalId || subAdding) return;
+
+  subAdding = true;
+  input.value = "";                       // xóa ngay để không gửi lại cùng nội dung
+  el("btnSubAdd").disabled = true;
+  try {
+    await addSub(S.modalId, v);
+  } finally {
+    subAdding = false;
+    el("btnSubAdd").disabled = false;
+    input.focus();
+  }
 }
 
 /* ==========================================================================
@@ -794,6 +804,12 @@ async function addSub(projectId, title) {
   const clean = String(title || "").trim();
   if (!clean) return;
   const list = S.subs[projectId] = S.subs[projectId] || [];
+
+  // Trùng tên trong cùng một đầu mục gần như luôn là bấm nhầm hai lần.
+  if (list.some(s => s.title.trim().toLowerCase() === clean.toLowerCase())) {
+    toast(t("subDuplicate"), "err");
+    return;
+  }
   const row = { id: "tmp-" + Date.now(), project_id: projectId, title: clean,
                 done: false, owner: null, due: null, sort_order: list.length };
 

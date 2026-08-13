@@ -932,8 +932,19 @@ function paintSubRows() {
   if (!itemsTable) return;
   itemsTable.rows().every(function () {
     const r = this.data();
-    if (S.expanded[r.id]) { this.child(subRowHtml(r.id)).show(); bindSubRow(this.child(), r.id); }
-    else if (this.child.isShown()) this.child.hide();
+    const has = (S.subs[r.id] || []).length > 0;
+
+    // Xóa hết hạng mục con thì thu gọn lại, nếu không sẽ còn một khung rỗng
+    // mở toang mà không có mũi tên nào để đóng.
+    if (!has) S.expanded[r.id] = false;
+
+    if (S.expanded[r.id]) {
+      this.child.remove();                       // gỡ bản cũ rồi mới vẽ bản mới
+      this.child(subRowHtml(r.id)).show();
+      bindSubRow(this.child(), r.id);
+    } else {
+      this.child.remove();
+    }
   });
 }
 
@@ -971,7 +982,16 @@ function renderList() {
     next: p.next_steps || "", prog: 0
   }));
 
-  if (itemsTable) { itemsTable.clear().rows.add(rows).draw(false); paintSubRows(); return; }
+  if (itemsTable) {
+    // PHẢI gỡ dòng con TRƯỚC khi clear(). DataTables chèn dòng con thành <tr>
+    // riêng trong bảng; clear() chỉ xóa dòng dữ liệu, để lại <tr> con mồ côi
+    // trong DOM. paintSubRows() sau đó chèn thêm một bản nữa -> nhìn thấy
+    // hạng mục con lặp hai lần, và lần làm mới sau bảng có thể trắng luôn.
+    itemsTable.rows().every(function () { this.child.remove(); });
+    itemsTable.clear().rows.add(rows).draw(false);
+    paintSubRows();
+    return;
+  }
 
   itemsTable = new DataTable("#itemsTable", {
     data: rows, pageLength: 25, order: [[2, "desc"]],   // cột Rủi ro dịch sang phải 1 vì có thêm cột Tiến độ
