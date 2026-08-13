@@ -109,6 +109,19 @@ const PRIORITIES = ["High", "Medium", "Low"];
 const PRIORITY_COLOR = { "High": "#E11D48", "Medium": "#EA8C0B", "Low": "#8A968F" };
 const AVATAR_COLORS = ["#7E22CE","#0D9488","#E11D48","#EA8C0B","#2563EB","#A855F7","#0F766E","#BE185D"];
 
+const SQL_SUBTASKS = `create table if not exists public.subtasks (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  title      text not null,
+  done       boolean not null default false,
+  owner      text,
+  due        date,
+  sort_order smallint not null default 0,
+  created_at timestamptz default now()
+);
+create index if not exists subtasks_project_idx on public.subtasks(project_id);
+alter table public.subtasks disable row level security;`;
+
 const SQL_CONNECTED = `-- Xperise Workstream Intelligence — connected layer
 -- An toan: chay lai nhieu lan cung khong sao, khong xoa du lieu cu.
 
@@ -283,6 +296,27 @@ function computeWRI(p) {
 function renderSubEditor() {
   const box = el("subList");
   if (!box) return;
+
+  // Bảng subtasks chưa tồn tại: KHÔNG cho nhập. Trước đây vẫn cho thêm vào bộ
+  // nhớ tạm nên nhìn như đã lưu, rồi biến mất ngay lần tải lại — im lặng mất dữ
+  // liệu là kiểu hỏng tệ nhất, nên giờ chặn thẳng và nói rõ phải làm gì.
+  if (!S.demo && !S.hasSubs) {
+    box.innerHTML = `<div class="sub-blocked">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div><div>${esc(t("subNoTable"))}</div>
+        <button type="button" class="link-btn" id="btnSubSql">${esc(t("subCopySql"))}</button></div>
+      </div>`;
+    el("subProgress").textContent = "";
+    el("subNew").disabled = true; el("btnSubAdd").disabled = true;
+    el("subHint").textContent = "";
+    const b = el("btnSubSql");
+    if (b) b.addEventListener("click", () => {
+      navigator.clipboard.writeText(SQL_SUBTASKS).then(
+        () => toast(t("sqlCopied"), "ok"),
+        () => toast(t("sqlCopyFail"), "err"));
+    });
+    return;
+  }
 
   // Đầu mục chưa lưu thì chưa có id để gắn hạng mục con vào.
   if (!S.modalId) {
@@ -738,7 +772,11 @@ async function loadSubtasks() {
   if (S.demo) { DEMO_SUBS.forEach(addSubToStore); S.hasSubs = true; return; }
 
   const { data, error } = await S.sb.from("subtasks").select("*").order("sort_order", { ascending: true });
-  if (error) { S.hasSubs = false; return; }   // chưa chạy SQL — bỏ qua, không báo lỗi ồn ào
+  if (error) {
+    S.hasSubs = false;
+    if (!S.warnedNoSubs) { S.warnedNoSubs = true; toast(t("subNoTable"), "err"); }
+    return;
+  }
   S.hasSubs = true;
   (data || []).forEach(addSubToStore);
 }
@@ -759,7 +797,9 @@ async function addSub(projectId, title) {
   const row = { id: "tmp-" + Date.now(), project_id: projectId, title: clean,
                 done: false, owner: null, due: null, sort_order: list.length };
 
-  if (S.demo || !S.hasSubs) { list.push(row); afterSubChange(projectId); return; }
+  if (S.demo) { list.push(row); afterSubChange(projectId); return; }
+  // Không có bảng thì từ chối ngay, thay vì giữ tạm rồi mất lúc tải lại.
+  if (!S.hasSubs) { toast(t("subNoTable"), "err"); return; }
 
   const { data, error } = await S.sb.from("subtasks")
     .insert([{ project_id: projectId, title: clean, sort_order: list.length }]).select();
