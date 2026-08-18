@@ -1007,3 +1007,49 @@ table.ptable-edit input.form-control {
   .pview.is-active { animation: none; }
   .rail-fill { transition: none; }
 }
+
+/* --- tiến độ cả năm: lũy kế so với kế hoạch 12 tháng ---------------------
+   Vạch dọc là tiến độ thời gian. Nếu phần đầy ngắn hơn vạch, nghĩa là
+   đang chậm so với nhịp cần thiết để về đích tháng 12.                    */
+.yearbar {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 16px 18px 14px;
+  box-shadow: var(--shadow); margin-bottom: 18px;
+}
+.yearbar-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap;
+}
+.yearbar-line { margin: 4px 0 0; font-size: 14px; color: var(--ink); }
+.yearbar-line b { font-weight: 600; }
+.yearbar-nums { display: flex; gap: 22px; }
+.yearbar-nums div { text-align: right; }
+.yearbar-nums span {
+  display: block; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.yearbar-nums b { font-size: 17px; font-weight: 600; }
+.yearbar-track {
+  position: relative; height: 10px; background: var(--line);
+  border-radius: 99px; margin-top: 16px; overflow: visible;
+}
+.yearbar-fill {
+  position: absolute; inset: 0 auto 0 0; border-radius: 99px;
+  background: linear-gradient(90deg, var(--teal) 0%, #0F766E 100%);
+  transition: width .6s cubic-bezier(.2,.7,.2,1);
+}
+.yearbar-time {
+  position: absolute; top: -5px; width: 2px; height: 20px;
+  background: var(--violet-deep); border-radius: 2px;
+}
+.yearbar-scale {
+  display: flex; justify-content: space-between; margin-top: 8px;
+}
+.yearbar-scale span {
+  font-size: 10px; color: var(--ink-3); font-family: "JetBrains Mono", monospace;
+}
+.yearbar-scale span.on { color: var(--teal); font-weight: 600; }
+@media (max-width: 720px) {
+  .yearbar-nums { gap: 14px; }
+  .yearbar-scale span { font-size: 8.5px; }
+}

@@ -84,6 +84,10 @@ Object.assign(I18N.vi, {
   pNoXlsxLib: "Thiếu thư viện đọc Excel (SheetJS). Kiểm tra thẻ script xlsx trong index.html và kết nối mạng, rồi tải lại trang.",
   pSheetsSeen: names => `Các sheet tìm thấy trong file: ${names}`,
   pSkippedBlank: list => `Bỏ qua các tháng chưa có số liệu: ${list}`,
+  pGap: "Còn lại theo kế hoạch",
+  pYtd: "Lũy kế đến nay", pFy: "Cả năm 2026", pRemaining: "Còn phải đạt",
+  pProgress: "Tiến độ năm",
+  pProgressLine: (a, b, p) => `Đã đạt <b>${a}</b> trong tổng kế hoạch <b>${b}</b> tỷ cho năm 2026, tương đương <b>${p}</b>.`,
   pCommitted: (a, t) => t ? `Đã ghi ${a} kỳ thực tế và ${t} kỳ kế hoạch` : `Đã ghi ${a} kỳ dữ liệu`,
   pCommitFail: e => `Ghi không thành công: ${e}`,
   pSavedTargets: n => `Đã lưu kế hoạch cho ${n} kỳ`,
@@ -162,6 +166,10 @@ Object.assign(I18N.en, {
   pNoXlsxLib: "The Excel reader (SheetJS) is missing. Check the xlsx script tag in index.html and your connection, then reload.",
   pSheetsSeen: names => `Sheets found in the file: ${names}`,
   pSkippedBlank: list => `Skipped months with no figures yet: ${list}`,
+  pGap: "Remaining to plan",
+  pYtd: "Year to date", pFy: "Full year 2026", pRemaining: "Still to deliver",
+  pProgress: "Year progress",
+  pProgressLine: (a, b, p) => `<b>${a}</b> delivered of the <b>${b}</b>bn full-year plan, or <b>${p}</b>.`,
   pCommitted: (a, t) => t ? `Saved ${a} actual periods and ${t} plan periods` : `Saved ${a} periods`,
   pCommitFail: e => `Save failed: ${e}`,
   pSavedTargets: n => `Plan saved for ${n} periods`,
@@ -209,7 +217,10 @@ const Perf = (function () {
   }
   const grpTotal = (r, g) => STREAMS.filter(s => s.group === g)
     .reduce((a, s) => a + (Number(r[s.key]) || 0), 0);
-  const revTotal = r => grpTotal(r, "A") + grpTotal(r, "B");
+  /* Tháng chưa có số thực tế trả về null, KHÔNG phải 0.
+     0 nghĩa là doanh thu bằng không; null nghĩa là chưa có số. */
+  const hasAct  = r => r.has_actual !== false && r.total_revenue !== null;
+  const revTotal = r => hasAct(r) ? grpTotal(r, "A") + grpTotal(r, "B") : null;
 
   /* toast của app chính; nếu chưa có thì im lặng */
   function say(msg, kind) {
@@ -304,6 +315,7 @@ const Perf = (function () {
   function renderAll() {
     fillPeriods();
     renderExec();
+    renderYearProgress();
     renderRails();
     renderPulseTable();
     renderRevenue();
@@ -315,15 +327,19 @@ const Perf = (function () {
     const sel = q("perfPeriod");
     if (!sel) return;
     const cur = sel.value;
-    if (!P.rows.length) { sel.innerHTML = `<option>${t("pNoDataShort")}</option>`; return; }
-    sel.innerHTML = P.rows.map(r =>
+    const withData = P.rows.filter(hasAct);
+    if (!withData.length) { sel.innerHTML = `<option>${t("pNoDataShort")}</option>`; return; }
+    sel.innerHTML = withData.map(r =>
       `<option value="${r.period}">${mlabel(r.period)}</option>`).join("");
-    const actuals = P.rows.filter(r => !r.is_forecast);
-    const fallback = (actuals.length ? actuals : P.rows).slice(-1)[0].period;
-    sel.value = P.rows.some(r => r.period === cur) ? cur : fallback;
+    const actuals = withData.filter(r => !r.is_forecast);
+    const fallback = (actuals.length ? actuals : withData).slice(-1)[0].period;
+    sel.value = withData.some(r => r.period === cur) ? cur : fallback;
   }
 
-  const current = () => P.rows.find(r => r.period === (q("perfPeriod") || {}).value) || null;
+  const current = () => {
+    const v = (q("perfPeriod") || {}).value;
+    return P.rows.find(r => r.period === v && hasAct(r)) || null;
+  };
 
   function renderExec() {
     const r = current();
@@ -331,8 +347,9 @@ const Perf = (function () {
     if (!txt) return;
     if (!r) { txt.innerHTML = t("pExecEmpty"); chips.innerHTML = ""; return; }
 
-    const i = P.rows.findIndex(x => x.period === r.period);
-    const prev = i > 0 ? P.rows[i - 1] : null;
+    const withData = P.rows.filter(hasAct);
+    const i = withData.findIndex(x => x.period === r.period);
+    const prev = i > 0 ? withData[i - 1] : null;
     const tot = revTotal(r);
     const hasPlan = r.target_revenue > 0;
 
@@ -363,8 +380,9 @@ const Perf = (function () {
       host.innerHTML = `<div class="rail rail-empty">${t("pNoData")}</div>`;
       return;
     }
-    const i = P.rows.findIndex(x => x.period === r.period);
-    const prev = i > 0 ? P.rows[i - 1] : null;
+    const withData = P.rows.filter(hasAct);
+    const i = withData.findIndex(x => x.period === r.period);
+    const prev = i > 0 ? withData[i - 1] : null;
     const tot = revTotal(r);
 
     const cards = [
@@ -404,17 +422,67 @@ const Perf = (function () {
     }).join("");
   }
 
+  /* Tiến độ cả năm: lũy kế thực tế so với tổng kế hoạch 12 tháng.
+     Đây là câu trả lời trực tiếp cho "đang ở đâu so với mục tiêu tháng 12". */
+  function renderYearProgress() {
+    const host = q("perfYear");
+    if (!host) return;
+    const ytd = P.rows.filter(hasAct).reduce((a, r) => a + revTotal(r), 0);
+    const fy  = P.rows.reduce((a, r) => a + (Number(r.target_revenue) || 0), 0);
+    if (!fy) { host.innerHTML = ""; return; }
+
+    const pctv = 100 * ytd / fy;
+    const done = P.rows.filter(hasAct).length;
+    const planned = P.rows.filter(r => r.target_revenue > 0).length;
+    // tiến độ thời gian: đã đi bao nhiêu phần của năm
+    const timePct = planned ? 100 * done / planned : 0;
+
+    host.innerHTML = `
+      <div class="yearbar">
+        <div class="yearbar-head">
+          <div>
+            <span class="eyebrow">${t("pProgress")}</span>
+            <p class="yearbar-line">${t("pProgressLine")(
+              bn(ytd, 1) + " " + t("pUnitBn"), bn(fy, 1), pc(pctv))}</p>
+          </div>
+          <div class="yearbar-nums">
+            <div><span>${t("pYtd")}</span><b class="mono">${bn(ytd, 1)}</b></div>
+            <div><span>${t("pRemaining")}</span><b class="mono">${bn(fy - ytd, 1)}</b></div>
+            <div><span>${t("pFy")}</span><b class="mono">${bn(fy, 1)}</b></div>
+          </div>
+        </div>
+        <div class="yearbar-track">
+          <div class="yearbar-fill" style="width:${Math.min(100, pctv)}%"></div>
+          <div class="yearbar-time" style="left:${Math.min(100, timePct)}%"></div>
+        </div>
+        <div class="yearbar-scale">
+          ${P.rows.map(r => `<span class="${hasAct(r) ? "on" : ""}">${mlabel(r.period).slice(0,3)}</span>`).join("")}
+        </div>
+      </div>`;
+  }
+
   function renderPulseTable() {
+    const dash = "—";
     table(q("ptblPulse"),
       [t("pPeriodCol"), `${t("pRevenue")} (${t("pUnitBn")})`, `${t("pPlan")} (${t("pUnitBn")})`,
-       t("pAchieved"), t("pCustomers"), t("pActive"), t("pActiveShort"),
-       t("pUsers"), `${t("pArpcShort")} (${t("pUnitMn")})`],
-      P.rows.map(r => [
-        mlabel(r.period), bn(revTotal(r), 3), bn(r.target_revenue, 3), pc(r.revenue_pct),
-        int(r.total_customers), int(r.active_customers), pc(r.customer_active_rate),
-        int(r.total_users), mn(r.arpc, 2)
-      ]),
-      [1, 2, 3, 4, 5, 6, 7, 8], P.rows.map(r => r.is_forecast));
+       t("pAchieved"), t("pCustomers"), `${t("pCustomers")} ${t("pPlan")}`,
+       t("pUsers"), `${t("pUsers")} ${t("pPlan")}`, `${t("pArpcShort")} (${t("pUnitMn")})`],
+      P.rows.map(r => {
+        const A = hasAct(r);
+        return [
+          mlabel(r.period),
+          A ? bn(revTotal(r), 3) : dash,
+          bn(r.target_revenue, 3),
+          A ? pc(r.revenue_pct) : dash,
+          A ? int(r.total_customers) : dash,
+          int(r.target_customers),
+          A ? int(r.total_users) : dash,
+          int(r.target_users),
+          A ? mn(r.arpc, 2) : dash
+        ];
+      }),
+      [1, 2, 3, 4, 5, 6, 7, 8],
+      P.rows.map(r => r.is_forecast || !hasAct(r)));
     chartRevenue(); chartArpc();
   }
 
@@ -422,11 +490,11 @@ const Perf = (function () {
     const head = [t("pPeriodCol"), ...STREAMS.map(sName),
                   t("pStreamA"), t("pStreamB"), t("pTotal"), t("pStreamB") + " %"];
     table(q("ptblRevenue"), head,
-      P.rows.map(r => [
+      P.rows.filter(hasAct).map(r => [
         mlabel(r.period), ...STREAMS.map(s => vnd(r[s.key])),
         vnd(grpTotal(r, "A")), vnd(grpTotal(r, "B")), vnd(revTotal(r)), pc(r.stream_b_share)
       ]),
-      head.map((_, i) => i).slice(1), P.rows.map(r => r.is_forecast));
+      head.map((_, i) => i).slice(1), P.rows.filter(hasAct).map(r => r.is_forecast));
     chartStack(); chartShare();
   }
 
@@ -434,10 +502,10 @@ const Perf = (function () {
     table(q("ptblCustomer"),
       [t("pPeriodCol"), t("pCustomers"), t("pActive"), t("pActiveShort"),
        t("pUsers"), t("pActive"), t("pActiveShort")],
-      P.rows.map(r => [
+      P.rows.filter(hasAct).map(r => [
         mlabel(r.period), int(r.total_customers), int(r.active_customers), pc(r.customer_active_rate),
         int(r.total_users), int(r.active_users), pc(r.user_active_rate)
-      ]), [1, 2, 3, 4, 5, 6], P.rows.map(r => r.is_forecast));
+      ]), [1, 2, 3, 4, 5, 6], P.rows.filter(hasAct).map(r => r.is_forecast));
     chartUsers(); chartActive();
   }
 
@@ -487,17 +555,29 @@ const Perf = (function () {
   }
   const labels = () => P.rows.map(r => mlabel(r.period));
 
+  /* Đường kế hoạch chạy đủ 12 tháng; cột thực tế dừng ở tháng cuối
+     có số. Khoảng trống phía sau là chủ ý — cho thấy phần còn phải đi. */
   function chartRevenue() {
     mk("pcRevenue", { type: "bar", data: { labels: labels(), datasets: [
-      { label: t("pActual"), data: P.rows.map(r => +bn(revTotal(r), 3)),
-        backgroundColor: "#0D9488", borderRadius: 5, order: 2 },
-      { label: t("pPlan"), type: "line", data: P.rows.map(r => r.target_revenue ? +bn(r.target_revenue, 3) : null),
-        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 0,
-        tension: .25, spanGaps: true, order: 1 }
+      { label: t("pActual"),
+        data: P.rows.map(r => hasAct(r) ? +bn(revTotal(r), 3) : null),
+        backgroundColor: "#0D9488", borderRadius: 5, order: 3 },
+      { label: t("pPlan"), type: "line",
+        data: P.rows.map(r => r.target_revenue ? +bn(r.target_revenue, 3) : null),
+        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
+        tension: .25, spanGaps: true, order: 1 },
+      { label: t("pGap"), type: "bar",
+        data: P.rows.map(r => hasAct(r) ? null :
+          (r.target_revenue ? +bn(r.target_revenue, 3) : null)),
+        backgroundColor: "rgba(126,34,206,.13)", borderColor: "rgba(126,34,206,.45)",
+        borderWidth: 1, borderRadius: 5, order: 2 }
     ] }, options: BASE });
   }
   function chartArpc() {
     mk("pcArpc", { type: "line", data: { labels: labels(), datasets: [
+      { label: t("pPlan"), data: P.rows.map(r => r.target_arpc ? +mn(r.target_arpc, 3) : null),
+        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
+        tension: .25, spanGaps: true },
       { label: t("pWithLicence"), data: P.rows.map(r => r.arpc ? +mn(r.arpc, 3) : null),
         borderColor: "#A855F7", backgroundColor: "rgba(168,85,247,.10)", fill: true,
         tension: .3, pointRadius: 2, borderWidth: 2 },
@@ -523,7 +603,10 @@ const Perf = (function () {
   function chartUsers() {
     mk("pcUsers", { type: "bar", data: { labels: labels(), datasets: [
       { label: t("pTotal"),  data: P.rows.map(r => r.total_users),  backgroundColor: "#E3E8EC", borderRadius: 5 },
-      { label: t("pActive"), data: P.rows.map(r => r.active_users), backgroundColor: "#0D9488", borderRadius: 5 }
+      { label: t("pActive"), data: P.rows.map(r => r.active_users), backgroundColor: "#0D9488", borderRadius: 5 },
+      { label: t("pPlan"), type: "line", data: P.rows.map(r => r.target_users || null),
+        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
+        tension: .25, spanGaps: true }
     ] }, options: BASE });
   }
   function chartActive() {
