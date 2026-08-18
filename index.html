@@ -22,10 +22,10 @@
     <div class="brand">
       <img class="brand-logo" src="xperise-logo.png" alt="Xperise" />
       <span class="brand-divider"></span>
-      <span class="brand-name">Workstream Intelligence</span>
+      <span class="brand-name" id="brandName">Workstream Intelligence</span>
     </div>
 
-    <div class="searchbox">
+    <div class="searchbox" id="searchBox">
       <i class="bi bi-search"></i>
       <input type="text" id="globalSearch" data-i18n-ph="searchPh" autocomplete="off" />
       <kbd class="kbd-hint">⌘K</kbd>
@@ -33,11 +33,15 @@
     </div>
 
     <div class="top-actions">
+      <div class="seg mode-seg" id="modeSeg" role="tablist" aria-label="Mode">
+        <button class="seg-btn is-active" data-mode="workstream" data-i18n="modeWork"></button>
+        <button class="seg-btn" data-mode="performance" data-i18n="modePerf"></button>
+      </div>
       <div class="seg lang-seg" id="langSeg">
         <button class="seg-btn is-active" data-lang="vi">VI</button>
         <button class="seg-btn" data-lang="en">EN</button>
       </div>
-      <button class="btn btn-primary" id="btnNew"><i class="bi bi-plus-lg"></i> <span data-i18n="newItem"></span></button>
+      <button class="btn btn-primary ws-only" id="btnNew"><i class="bi bi-plus-lg"></i> <span data-i18n="newItem"></span></button>
       <button class="icon-btn" id="btnRefresh" data-i18n-title="refresh"><i class="bi bi-arrow-clockwise"></i></button>
     </div>
   </div>
@@ -61,16 +65,16 @@
   <div class="notice d-none" id="modeNotice"></div>
 
   <!-- HELICOPTER VIEW — hiển thị ở mọi tab -->
-  <section class="exec" id="execBanner">
+  <section class="exec ws-only" id="execBanner">
     <span class="exec-eyebrow" data-i18n="execEyebrow"></span>
     <p class="exec-text" id="execText"></p>
     <div class="exec-chips" id="execChips"></div>
   </section>
 
-  <section class="kpi-strip" id="kpiStrip"></section>
+  <section class="kpi-strip ws-only" id="kpiStrip"></section>
 
   <!-- BỘ LỌC TỔNG — áp cho mọi tab -->
-  <section class="card filters">
+  <section class="card filters ws-only" id="filtersCard">
     <div class="card-head">
       <div>
         <span class="eyebrow" data-i18n="filterEyebrow"></span>
@@ -307,6 +311,168 @@
     </section>
   </div>
 
+
+  <!-- ==================================================================
+       PERFORMANCE DASHBOARD
+       Chỉ hiện khi bật chế độ Performance ở thanh trên cùng.
+       ================================================================== -->
+  <div class="perf-shell d-none" id="perfShell">
+
+    <nav class="tabs perf-tabs" id="perfTabs">
+      <button class="tab is-active" data-ptab="pulse"    data-i18n="pTabPulse"></button>
+      <button class="tab" data-ptab="revenue"  data-i18n="pTabRevenue"></button>
+      <button class="tab" data-ptab="customer" data-i18n="pTabCustomer"></button>
+      <button class="tab" data-ptab="data"     data-i18n="pTabData"></button>
+      <span class="tabs-spacer"></span>
+      <span class="perf-conn" id="perfConn"></span>
+    </nav>
+
+    <div class="notice d-none" id="perfNotice"></div>
+
+    <!-- ---------- PULSE ---------- -->
+    <div class="pview is-active" id="pview-pulse">
+      <section class="exec">
+        <span class="exec-eyebrow" data-i18n="pExecEyebrow"></span>
+        <p class="exec-text" id="perfExecText"></p>
+        <div class="exec-chips" id="perfExecChips"></div>
+      </section>
+
+      <div class="perf-periodbar">
+        <label class="lbl" for="perfPeriod" data-i18n="pPeriod"></label>
+        <select class="form-select" id="perfPeriod"></select>
+      </div>
+
+      <section class="rails" id="perfRails"></section>
+
+      <div class="split split-5-7">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <span class="eyebrow" data-i18n="signature"></span>
+              <h2 class="card-title" data-i18n="pRevVsPlanTitle"></h2>
+            </div>
+            <span class="card-note" data-i18n="pUnitBn"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="pcRevenue"></canvas></div>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <span class="eyebrow" data-i18n="pArpcEyebrow"></span>
+              <h2 class="card-title" data-i18n="pArpcTitle"></h2>
+            </div>
+            <span class="card-note" data-i18n="pUnitMn"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="pcArpc"></canvas></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head"><h2 class="card-title" data-i18n="pMonthlyTable"></h2></div>
+        <div class="tablewrap"><table class="ptable" id="ptblPulse"></table></div>
+      </section>
+    </div>
+
+    <!-- ---------- REVENUE ---------- -->
+    <div class="pview" id="pview-revenue">
+      <div class="split split-5-7">
+        <section class="card">
+          <div class="card-head">
+            <h2 class="card-title" data-i18n="pByStream"></h2>
+            <span class="card-note" data-i18n="pUnitBn"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="pcStack"></canvas></div>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <h2 class="card-title" data-i18n="pShareTitle"></h2>
+            <span class="card-note" data-i18n="pUnitPct"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="pcShare"></canvas></div>
+        </section>
+      </div>
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title" data-i18n="pStreamDetail"></h2>
+          <span class="card-note" data-i18n="pUnitVnd"></span>
+        </div>
+        <div class="tablewrap"><table class="ptable" id="ptblRevenue"></table></div>
+      </section>
+    </div>
+
+    <!-- ---------- CUSTOMER ---------- -->
+    <div class="pview" id="pview-customer">
+      <div class="split split-5-7">
+        <section class="card">
+          <div class="card-head"><h2 class="card-title" data-i18n="pTotalVsActive"></h2></div>
+          <div class="chart-wrap"><canvas id="pcUsers"></canvas></div>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <h2 class="card-title" data-i18n="pActiveRate"></h2>
+            <span class="card-note" data-i18n="pUnitPct"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="pcActive"></canvas></div>
+        </section>
+      </div>
+      <section class="card">
+        <div class="card-head"><h2 class="card-title" data-i18n="pCustomerDetail"></h2></div>
+        <div class="tablewrap"><table class="ptable" id="ptblCustomer"></table></div>
+      </section>
+    </div>
+
+    <!-- ---------- DATA ---------- -->
+    <div class="pview" id="pview-data">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow" data-i18n="pUploadEyebrow"></span>
+            <h2 class="card-title" data-i18n="pUploadTitle"></h2>
+          </div>
+        </div>
+        <div class="uploader">
+          <div class="drop" id="perfDrop">
+            <input type="file" id="perfFile" accept=".xlsx,.xls,.csv" hidden />
+            <i class="bi bi-filetype-xlsx drop-icon"></i>
+            <p class="drop-main" id="dropMain"></p>
+            <p class="drop-sub" data-i18n="pDropSub"></p>
+          </div>
+          <div class="drop-side">
+            <button class="btn btn-ghost btn-sm" id="btnTemplate" data-i18n="pTemplate"></button>
+            <p class="hint" data-i18n="pTemplateHint"></p>
+          </div>
+        </div>
+
+        <div class="preview d-none" id="perfPreview">
+          <div class="preview-head">
+            <h3 class="card-title" data-i18n="pCheckTitle"></h3>
+            <div class="d-flex gap-2">
+              <button class="btn btn-ghost btn-sm" id="btnPerfCancel" data-i18n="cancel"></button>
+              <button class="btn btn-primary btn-sm" id="btnPerfCommit" data-i18n="pCommit"></button>
+            </div>
+          </div>
+          <ul class="checks" id="perfChecks"></ul>
+          <div class="tablewrap"><table class="ptable" id="ptblPreview"></table></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title" data-i18n="pTargetTitle"></h2>
+          <button class="btn btn-ghost btn-sm" id="btnSaveTargets" data-i18n="pSaveTargets"></button>
+        </div>
+        <p class="hint hint-pad" data-i18n="pTargetHint"></p>
+        <div class="tablewrap"><table class="ptable ptable-edit" id="ptblTargets"></table></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2 class="card-title" data-i18n="pUploadLog"></h2></div>
+        <div class="tablewrap"><table class="ptable" id="ptblUploads"></table></div>
+      </section>
+    </div>
+
+  </div>
+
 </main>
 
 
@@ -402,10 +568,12 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script src="i18n.js"></script>
 <script src="app.js"></script>
 <script src="views.js"></script>
+<script src="perf.js"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>
 </body>
 </html>
