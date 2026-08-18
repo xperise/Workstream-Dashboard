@@ -175,7 +175,6 @@ const S = {
   expanded: {},         // đầu mục nào đang mở rộng trong bảng Danh sách
   hasSubs: false,       // bảng subtasks đã tồn tại trên Supabase chưa
   tab: "overview",
-  mode: "workstream",   // "workstream" | "performance"
   modalId: null,
   modal: null,          // GIỮ MỘT bản popup duy nhất — tạo mới mỗi lần sẽ khóa cuộn trang
   filters: { q: "", pic: "ALL", status: "ALL", priority: "ALL", stream: "ALL", band: "ALL", from: "", to: "", flags: [] }
@@ -1305,11 +1304,6 @@ async function boot() {
 
   await loadData();
   subscribeRealtime();
-
-  Perf.init(S.sb);
-  let saved = "workstream";
-  try { saved = localStorage.getItem("xp_mode") || "workstream"; } catch (e) {}
-  setMode(saved === "performance" ? "performance" : "workstream");
 }
 
 /** Đồng bộ tức thời.
@@ -1333,10 +1327,7 @@ function subscribeRealtime() {
 
 function bindEvents() {
   el("btnNew").addEventListener("click", () => openModal(null));
-  el("btnRefresh").addEventListener("click", async () => {
-    if (S.mode === "performance") { await Perf.load(); toast(t("reloaded"), "ok"); return; }
-    await loadData(); toast(t("reloaded"), "ok");
-  });
+  el("btnRefresh").addEventListener("click", async () => { await loadData(); toast(t("reloaded"), "ok"); });
   el("btnClear").addEventListener("click", clearFilters);
   el("btnCsv").addEventListener("click", exportCsv);
   el("btnPrint").addEventListener("click", () => window.print());
@@ -1396,11 +1387,6 @@ function bindEvents() {
     if (!e.target.closest(".searchbox")) closeSuggestions();
   });
 
-  el("modeSeg").addEventListener("click", e => {
-    const b = e.target.closest("[data-mode]");
-    if (b && b.dataset.mode !== S.mode) setMode(b.dataset.mode);
-  });
-
   el("tabs").addEventListener("click", e => {
     const b = e.target.closest(".tab[data-view]");
     if (b) switchTab(b.dataset.view);
@@ -1410,7 +1396,6 @@ function bindEvents() {
     const b = e.target.closest("[data-lang]");
     if (!b || b.dataset.lang === LANG) return;
     setLang(b.dataset.lang);
-    if (S.mode === "performance") { Perf.relabel(); return; }
     S.all = enrich(S.all);        // nhãn luồng và lý do đổi theo ngôn ngữ
     destroyTable();               // dựng lại bảng để đổi tiêu đề cột
     fillSelects();
@@ -1420,33 +1405,6 @@ function bindEvents() {
   document.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); el("globalSearch").focus(); }
   });
-}
-
-/* ==========================================================================
-   CHẾ ĐỘ — Workstream ↔ Performance
-   Hai chế độ dùng chung thanh trên cùng, phần còn lại tách hẳn.
-   ========================================================================== */
-function setMode(mode) {
-  S.mode = mode;
-  const perf = mode === "performance";
-
-  document.querySelectorAll("#modeSeg [data-mode]").forEach(b =>
-    b.classList.toggle("is-active", b.dataset.mode === mode));
-  document.body.classList.toggle("mode-performance", perf);
-
-  el("brandName").textContent = perf ? t("modePerfBrand") : t("modeWorkBrand");
-  el("perfShell").classList.toggle("d-none", !perf);
-  el("tabs").classList.toggle("d-none", perf);
-  el("searchBox").classList.toggle("d-none", perf);
-  el("modeNotice").classList.toggle("d-none", perf || !S.demo);
-  document.querySelectorAll(".ws-only").forEach(n => n.classList.toggle("d-none", perf));
-  document.querySelectorAll(".view").forEach(v =>
-    v.classList.toggle("is-active", !perf && v.id === "view-" + S.tab));
-
-  try { localStorage.setItem("xp_mode", mode); } catch (e) {}
-
-  if (perf) Perf.enter();
-  else renderAll();
 }
 
 function switchTab(view) {
