@@ -53,6 +53,7 @@
     <button class="tab" data-view="timeline" data-i18n="tabTimeline"></button>
     <button class="tab" data-view="board" data-i18n="tabBoard"></button>
     <button class="tab" data-view="list" data-i18n-title="tabListTip"><span data-i18n="tabList"></span> <span class="tab-count" id="tabCountList">0</span></button>
+    <button class="tab" data-view="minutes" data-i18n-title="mTabTip"><span data-i18n="mTab"></span> <span class="tab-count" id="tabCountMinutes">0</span></button>
     <button class="tab" data-view="system" data-i18n-title="tabSystemTip"><span data-i18n="tabSystem"></span> <span class="tab-count" id="tabCountSystem">0</span></button>
     <span class="tabs-spacer"></span>
     <button class="tab tab-plain" id="btnCsv" data-i18n="exportCsv"></button>
@@ -280,7 +281,57 @@
     </section>
   </div>
 
-  <!-- TAB 7 — DỮ LIỆU & HỆ THỐNG -->
+  <!-- TAB 7 — BIÊN BẢN HỌP -->
+  <div class="view" id="view-minutes">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow" data-i18n="mEyebrow"></span>
+          <h2 class="card-title" data-i18n="mTitle"></h2>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnNewMinute">
+          <i class="bi bi-plus-lg"></i> <span data-i18n="mNew"></span>
+        </button>
+      </div>
+
+      <div class="minute-form d-none" id="minuteForm">
+        <div class="mf-grid">
+          <label class="mf-field">
+            <span data-i18n="mDate"></span>
+            <input type="date" class="form-control" id="mDate" />
+          </label>
+          <label class="mf-field mf-wide">
+            <span data-i18n="mSubject"></span>
+            <input type="text" class="form-control" id="mSubject" data-i18n-ph="mSubjectPh" />
+          </label>
+          <label class="mf-field mf-wide">
+            <span data-i18n="mAttendees"></span>
+            <input type="text" class="form-control" id="mAttendees" data-i18n-ph="mAttendeesPh" />
+          </label>
+          <label class="mf-field mf-full">
+            <span data-i18n="mSummary"></span>
+            <textarea class="form-control" id="mSummary" rows="3" data-i18n-ph="mSummaryPh"></textarea>
+          </label>
+        </div>
+
+        <div class="drop drop-sm" id="minuteDrop">
+          <input type="file" id="minuteFile" hidden />
+          <i class="bi bi-paperclip drop-icon"></i>
+          <p class="drop-main" id="minuteDropMain"></p>
+          <p class="drop-sub" data-i18n="mDropSub"></p>
+        </div>
+
+        <div class="mf-actions">
+          <button class="btn btn-ghost btn-sm" id="btnMinuteCancel" data-i18n="cancel"></button>
+          <button class="btn btn-primary btn-sm" id="btnMinuteSave" data-i18n="mSave"></button>
+        </div>
+      </div>
+
+      <div class="minute-list" id="minuteList"></div>
+    </section>
+  </div>
+
+  <!-- TAB 8 — DỮ LIỆU & HỆ THỐNG -->
   <div class="view" id="view-system">
     <section class="card">
       <div class="card-head">
@@ -473,6 +524,8 @@
       </section>
     </div>
 
+
+
   </div>
 
 </main>
@@ -576,6 +629,7 @@
 <script src="app.js"></script>
 <script src="views.js"></script>
 <script src="perf.js"></script>
+<script src="minutes.js"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>
 </body>
 </html>

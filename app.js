@@ -1307,6 +1307,7 @@ async function boot() {
   subscribeRealtime();
 
   Perf.init(S.sb);
+  Minutes.init(S.sb);
   let saved = "workstream";
   try { saved = localStorage.getItem("xp_mode") || "workstream"; } catch (e) {}
   setMode(saved === "performance" ? "performance" : "workstream");
@@ -1335,6 +1336,7 @@ function bindEvents() {
   el("btnNew").addEventListener("click", () => openModal(null));
   el("btnRefresh").addEventListener("click", async () => {
     if (S.mode === "performance") { await Perf.load(); toast(t("reloaded"), "ok"); return; }
+    if (S.tab === "minutes") { await Minutes.load(); toast(t("reloaded"), "ok"); return; }
     await loadData(); toast(t("reloaded"), "ok");
   });
   el("btnClear").addEventListener("click", clearFilters);
@@ -1411,6 +1413,7 @@ function bindEvents() {
     if (!b || b.dataset.lang === LANG) return;
     setLang(b.dataset.lang);
     if (S.mode === "performance") { Perf.relabel(); return; }
+    if (S.tab === "minutes") { applyStaticText(); Minutes.relabel(); return; }
     S.all = enrich(S.all);        // nhãn luồng và lý do đổi theo ngôn ngữ
     destroyTable();               // dựng lại bảng để đổi tiêu đề cột
     fillSelects();
@@ -1450,6 +1453,7 @@ function setMode(mode) {
 }
 
 function switchTab(view) {
+  if (view === "minutes") Minutes.enter();
   S.tab = view;
   document.querySelectorAll(".tab[data-view]").forEach(b => b.classList.toggle("is-active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("is-active", v.id === "view-" + view));

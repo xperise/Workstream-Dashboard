@@ -28,8 +28,8 @@ Object.assign(I18N.vi, {
   pRevVsPlanTitle: "Doanh thu · thực tế và kế hoạch",
   pArpcEyebrow: "Chất lượng khách hàng", pArpcTitle: "Doanh thu trên mỗi khách hàng",
   pMonthlyTable: "Số liệu theo tháng",
-  pByStream: "Cơ cấu theo dòng doanh thu", pShareTitle: "Tỷ trọng dòng B",
-  pStreamDetail: "Chi tiết theo dòng",
+  pByStream: "Cơ cấu doanh thu theo hai chỉ số", pShareTitle: "Tỷ trọng chỉ số B",
+  pStreamDetail: "Chi tiết theo chỉ số",
   pTotalVsActive: "Tổng và đang hoạt động", pActiveRate: "Tỷ lệ hoạt động",
   pCustomerDetail: "Chi tiết theo tháng",
 
@@ -49,7 +49,7 @@ Object.assign(I18N.vi, {
   pForecast: "dự phóng", pActualLabel: "thực tế",
   pVsPrev: "so tháng trước", pAchieved: "% đạt",
   pTotal: "Tổng", pActive: "Hoạt động", pActiveShort: "% hoạt động",
-  pStreamA: "Dòng A", pStreamB: "Dòng B", pShare: "Tỷ trọng",
+  pStreamA: "A. Recurring transaction revenue + Marketplace & Vendor", pStreamB: "B. Subscription + Transaction fee (usage) — token-usage based", pShare: "Tỷ trọng",
   pWithLicence: "Có phí licence", pExLicence: "Loại phí licence",
   pPeriodCol: "Kỳ", pType: "Loại",
   pNoData: "Chưa có số liệu. Vào tab Nhập số liệu để tải lên.",
@@ -85,6 +85,7 @@ Object.assign(I18N.vi, {
   pSheetsSeen: names => `Các sheet tìm thấy trong file: ${names}`,
   pSkippedBlank: list => `Bỏ qua các tháng chưa có số liệu: ${list}`,
   pGap: "Còn lại theo kế hoạch",
+  pShortB: "Chỉ số B",
   pYtd: "Lũy kế đến nay", pFy: "Cả năm 2026", pRemaining: "Còn phải đạt",
   pProgress: "Tiến độ năm",
   pProgressLine: (a, b, p) => `Đã đạt <b>${a}</b> trong tổng kế hoạch <b>${b}</b> tỷ cho năm 2026, tương đương <b>${p}</b>.`,
@@ -110,8 +111,8 @@ Object.assign(I18N.en, {
   pRevVsPlanTitle: "Revenue · actual against plan",
   pArpcEyebrow: "Customer quality", pArpcTitle: "Revenue per customer",
   pMonthlyTable: "Monthly figures",
-  pByStream: "Revenue by stream", pShareTitle: "Stream B share",
-  pStreamDetail: "Detail by stream",
+  pByStream: "Revenue by line", pShareTitle: "Line B share",
+  pStreamDetail: "Detail by line",
   pTotalVsActive: "Total and active", pActiveRate: "Active rate",
   pCustomerDetail: "Monthly detail",
 
@@ -131,7 +132,7 @@ Object.assign(I18N.en, {
   pForecast: "forecast", pActualLabel: "actual",
   pVsPrev: "vs prior month", pAchieved: "% of plan",
   pTotal: "Total", pActive: "Active", pActiveShort: "% active",
-  pStreamA: "Stream A", pStreamB: "Stream B", pShare: "Share",
+  pStreamA: "A. Recurring transaction revenue + Marketplace & Vendor", pStreamB: "B. Subscription + Transaction fee (usage) — token-usage based", pShare: "Share",
   pWithLicence: "Including licence", pExLicence: "Excluding licence",
   pPeriodCol: "Period", pType: "Type",
   pNoData: "No figures yet. Use the Data entry tab to upload.",
@@ -167,6 +168,7 @@ Object.assign(I18N.en, {
   pSheetsSeen: names => `Sheets found in the file: ${names}`,
   pSkippedBlank: list => `Skipped months with no figures yet: ${list}`,
   pGap: "Remaining to plan",
+  pShortB: "Line B",
   pYtd: "Year to date", pFy: "Full year 2026", pRemaining: "Still to deliver",
   pProgress: "Year progress",
   pProgressLine: (a, b, p) => `<b>${a}</b> delivered of the <b>${b}</b>bn full-year plan, or <b>${p}</b>.`,
@@ -184,13 +186,15 @@ Object.assign(I18N.en, {
 const Perf = (function () {
 
   /* --- 2.1. Dòng doanh thu — sửa ở đây là mọi nơi đổi theo -------------- */
+  /* Doanh thu chỉ có hai chỉ số. Tên giữ nguyên như bản gửi investor,
+     không tách nhỏ, không thêm dòng nào khác. */
   const STREAMS = [
-    { key: "rev_travel",       vi: "Travel & lưu trú",      en: "Travel & accommodation", group: "A", color: "#0D9488" },
-    { key: "rev_mobility",     vi: "Mobility",              en: "Mobility",               group: "A", color: "#14B8A6" },
-    { key: "rev_other",        vi: "Nhóm chi tiêu khác",    en: "Other spend categories", group: "A", color: "#5EEAD4" },
-    { key: "rev_subscription", vi: "Thuê bao nền tảng",     en: "Platform subscription",  group: "B", color: "#A855F7" },
-    { key: "rev_licence",      vi: "Phí licence năm",       en: "Annual licence",         group: "B", color: "#C084FC" },
-    { key: "rev_oneoff",       vi: "Triển khai một lần",    en: "One-off implementation", group: "B", color: "#EA8C0B" }
+    { key: "rev_a", group: "A", color: "#0D9488",
+      vi: "A. Recurring transaction revenue + Marketplace & Vendor",
+      en: "A. Recurring transaction revenue + Marketplace & Vendor" },
+    { key: "rev_b", group: "B", color: "#A855F7",
+      vi: "B. Subscription + Transaction fee (usage) — token-usage based",
+      en: "B. Subscription + Transaction fee (usage) — token-usage based" }
   ];
   const sName = s => (typeof LANG !== "undefined" && LANG === "en") ? s.en : s.vi;
 
@@ -487,12 +491,11 @@ const Perf = (function () {
   }
 
   function renderRevenue() {
-    const head = [t("pPeriodCol"), ...STREAMS.map(sName),
-                  t("pStreamA"), t("pStreamB"), t("pTotal"), t("pStreamB") + " %"];
+    const head = [t("pPeriodCol"), ...STREAMS.map(sName), t("pTotal"), t("pShortB") + " %"];
     table(q("ptblRevenue"), head,
       P.rows.filter(hasAct).map(r => [
         mlabel(r.period), ...STREAMS.map(s => vnd(r[s.key])),
-        vnd(grpTotal(r, "A")), vnd(grpTotal(r, "B")), vnd(revTotal(r)), pc(r.stream_b_share)
+        vnd(revTotal(r)), pc(r.stream_b_share)
       ]),
       head.map((_, i) => i).slice(1), P.rows.filter(hasAct).map(r => r.is_forecast));
     chartStack(); chartShare();
@@ -595,7 +598,7 @@ const Perf = (function () {
   }
   function chartShare() {
     mk("pcShare", { type: "line", data: { labels: labels(), datasets: [
-      { label: t("pStreamB"), data: P.rows.map(r => r.stream_b_share),
+      { label: t("pShortB"), data: P.rows.map(r => r.stream_b_share),
         borderColor: "#A855F7", backgroundColor: "rgba(168,85,247,.12)", fill: true,
         tension: .3, pointRadius: 2, borderWidth: 2 }
     ] }, options: BASE });
@@ -664,12 +667,8 @@ const Perf = (function () {
      ========================================================================== */
   const HEADERS = {
     period: ["period", "ky", "kỳ", "thang", "tháng", "month"],
-    rev_travel: ["rev_travel", "travel"],
-    rev_mobility: ["rev_mobility", "mobility"],
-    rev_other: ["rev_other", "other"],
-    rev_subscription: ["rev_subscription", "subscription"],
-    rev_licence: ["rev_licence", "licence", "license"],
-    rev_oneoff: ["rev_oneoff", "oneoff", "one_off"],
+    rev_a: ["rev_a", "revenue_a", "stream_a"],
+    rev_b: ["rev_b", "revenue_b", "stream_b"],
     total_customers: ["total_customers"], active_customers: ["active_customers"],
     total_users: ["total_users"], active_users: ["active_users"],
     is_forecast: ["is_forecast", "forecast"],
@@ -969,6 +968,7 @@ const Perf = (function () {
     q("btnSaveTargets").addEventListener("click", saveTargets);
     q("btnTemplate").addEventListener("click", () =>
       window.open("Xperise_Metrics_Template.xlsx", "_blank"));
+
   }
 
   function switchPtab(tab) {

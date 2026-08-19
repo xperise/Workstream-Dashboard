@@ -1053,3 +1053,62 @@ table.ptable-edit input.form-control {
   .yearbar-nums { gap: 14px; }
   .yearbar-scale span { font-size: 8.5px; }
 }
+
+/* --- thanh trên cùng: giữ nhóm nút luôn nằm bên phải -----------------------
+   Ô tìm kiếm là phần tử co giãn đẩy nhóm nút sang phải. Ở chế độ Số liệu
+   ô này bị ẩn nên nhóm nút trôi về trái. margin-left:auto giữ nó cố định
+   bên phải ở cả hai chế độ.                                                */
+.topbar-in .top-actions { margin-left: auto; }
+
+/* --- biên bản họp --------------------------------------------------------- */
+.minute-form {
+  border-bottom: 1px solid var(--line); padding: 0 0 16px; margin-bottom: 4px;
+}
+.mf-grid {
+  display: grid; grid-template-columns: 180px 1fr 1fr; gap: 14px; margin-bottom: 14px;
+}
+.mf-field { display: flex; flex-direction: column; gap: 5px; }
+.mf-field > span {
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+}
+.mf-wide { grid-column: span 1; }
+.mf-full { grid-column: 1 / -1; }
+.mf-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.drop-sm { padding: 18px 16px; }
+.drop-sm .drop-icon { font-size: 20px; margin-bottom: 6px; }
+
+.minute-list { display: flex; flex-direction: column; }
+.minute-empty {
+  color: var(--ink-3); text-align: center; padding: 34px 18px; margin: 0; font-size: 13px;
+}
+.minute {
+  display: flex; gap: 18px; padding: 16px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.minute:last-child { border-bottom: 0; }
+.minute-date {
+  flex: 0 0 62px; text-align: center; padding-top: 2px;
+  border-right: 1px solid var(--line); margin-right: 2px;
+}
+.minute-date b {
+  display: block; font-size: 14px; font-weight: 600; color: var(--teal);
+  font-family: "JetBrains Mono", monospace;
+}
+.minute-date span { font-size: 11px; color: var(--ink-3); font-family: "JetBrains Mono", monospace; }
+.minute-body { flex: 1 1 auto; min-width: 0; }
+.minute-title { font-size: 14.5px; margin: 0 0 4px; }
+.minute-att { margin: 0 0 6px; font-size: 12.5px; color: var(--ink-2); }
+.minute-att span { color: var(--ink-3); }
+.minute-sum {
+  margin: 0 0 10px; font-size: 13px; color: var(--ink-2); white-space: pre-wrap;
+}
+.minute-foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.minute-fname { font-size: 11.5px; color: var(--ink-3); margin-left: 6px; font-weight: 400; }
+.minute-nofile { font-size: 12px; color: var(--ink-3); font-style: italic; }
+.minute-del { font-size: 12px; color: var(--critical); }
+
+@media (max-width: 860px) {
+  .mf-grid { grid-template-columns: 1fr; }
+  .minute { gap: 12px; }
+  .minute-date { flex-basis: 52px; }
+}
