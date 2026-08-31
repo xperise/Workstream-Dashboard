@@ -53,7 +53,7 @@
     <button class="tab" data-view="timeline" data-i18n="tabTimeline"></button>
     <button class="tab" data-view="board" data-i18n="tabBoard"></button>
     <button class="tab" data-view="list" data-i18n-title="tabListTip"><span data-i18n="tabList"></span> <span class="tab-count" id="tabCountList">0</span></button>
-    <button class="tab" data-view="minutes" data-i18n-title="mTabTip"><span data-i18n="mTab"></span> <span class="tab-count" id="tabCountMinutes">0</span></button>
+    <button class="tab" data-view="docs" data-i18n-title="dTabTip"><span data-i18n="dTab"></span> <span class="tab-count" id="tabCountDocs">0</span></button>
     <button class="tab" data-view="system" data-i18n-title="tabSystemTip"><span data-i18n="tabSystem"></span> <span class="tab-count" id="tabCountSystem">0</span></button>
     <span class="tabs-spacer"></span>
     <button class="tab tab-plain" id="btnCsv" data-i18n="exportCsv"></button>
@@ -282,52 +282,95 @@
   </div>
 
   <!-- TAB 7 — BIÊN BẢN HỌP -->
-  <div class="view" id="view-minutes">
+  <!-- =====================================================================
+       TAB TÀI LIỆU — 2 tab con: Biên bản họp · Tài liệu khác
+       ===================================================================== -->
+  <div class="view" id="view-docs">
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="eyebrow" data-i18n="mEyebrow"></span>
-          <h2 class="card-title" data-i18n="mTitle"></h2>
+          <span class="eyebrow" data-i18n="dEyebrow"></span>
+          <h2 class="card-title" data-i18n="dTitle"></h2>
         </div>
-        <button class="btn btn-primary btn-sm" id="btnNewMinute">
-          <i class="bi bi-plus-lg"></i> <span data-i18n="mNew"></span>
-        </button>
-      </div>
-
-      <div class="minute-form d-none" id="minuteForm">
-        <div class="mf-grid">
-          <label class="mf-field">
-            <span data-i18n="mDate"></span>
-            <input type="date" class="form-control" id="mDate" />
-          </label>
-          <label class="mf-field mf-wide">
-            <span data-i18n="mSubject"></span>
-            <input type="text" class="form-control" id="mSubject" data-i18n-ph="mSubjectPh" />
-          </label>
-          <label class="mf-field mf-wide">
-            <span data-i18n="mAttendees"></span>
-            <input type="text" class="form-control" id="mAttendees" data-i18n-ph="mAttendeesPh" />
-          </label>
-          <label class="mf-field mf-full">
-            <span data-i18n="mSummary"></span>
-            <textarea class="form-control" id="mSummary" rows="3" data-i18n-ph="mSummaryPh"></textarea>
-          </label>
-        </div>
-
-        <div class="drop drop-sm" id="minuteDrop">
-          <input type="file" id="minuteFile" hidden />
-          <i class="bi bi-paperclip drop-icon"></i>
-          <p class="drop-main" id="minuteDropMain"></p>
-          <p class="drop-sub" data-i18n="mDropSub"></p>
-        </div>
-
-        <div class="mf-actions">
-          <button class="btn btn-ghost btn-sm" id="btnMinuteCancel" data-i18n="cancel"></button>
-          <button class="btn btn-primary btn-sm" id="btnMinuteSave" data-i18n="mSave"></button>
+        <div class="seg" id="docSeg">
+          <button class="seg-btn is-active" data-doc="minutes" data-i18n="dSubMinutes"></button>
+          <button class="seg-btn" data-doc="files" data-i18n="dSubFiles"></button>
         </div>
       </div>
 
-      <div class="minute-list" id="minuteList"></div>
+      <!-- ---------- Tab con 1: BIÊN BẢN HỌP ---------- -->
+      <div id="docPaneMinutes">
+        <div class="doc-bar">
+          <span class="doc-hint" data-i18n="dMinutesHint"></span>
+          <span class="grow"></span>
+          <button class="btn btn-primary btn-sm" id="btnNewMinute">
+            <i class="bi bi-plus-lg"></i> <span data-i18n="mNew"></span>
+          </button>
+        </div>
+
+        <div class="minute-form d-none" id="minuteForm">
+          <div class="mf-grid">
+            <label class="mf-field">
+              <span data-i18n="mDate"></span>
+              <input type="date" class="form-control" id="mDate" />
+            </label>
+            <label class="mf-field mf-wide">
+              <span data-i18n="mSubject"></span>
+              <input type="text" class="form-control" id="mSubject" data-i18n-ph="mSubjectPh" />
+            </label>
+            <label class="mf-field mf-wide">
+              <span data-i18n="mAttendees"></span>
+              <input type="text" class="form-control" id="mAttendees" data-i18n-ph="mAttendeesPh" />
+            </label>
+            <label class="mf-field mf-full">
+              <span data-i18n="mSummary"></span>
+              <textarea class="form-control" id="mSummary" rows="3" data-i18n-ph="mSummaryPh"></textarea>
+            </label>
+          </div>
+
+          <div class="drop drop-sm" id="minuteDrop">
+            <input type="file" id="minuteFile" hidden />
+            <i class="bi bi-paperclip drop-icon"></i>
+            <p class="drop-main" id="minuteDropMain"></p>
+            <p class="drop-sub" data-i18n="mDropSub"></p>
+          </div>
+
+          <div class="mf-actions">
+            <button class="btn btn-ghost btn-sm" id="btnMinuteCancel" data-i18n="cancel"></button>
+            <button class="btn btn-primary btn-sm" id="btnMinuteSave" data-i18n="mSave"></button>
+          </div>
+        </div>
+
+        <div class="minute-list" id="minuteList"></div>
+      </div>
+
+      <!-- ---------- Tab con 2: TÀI LIỆU KHÁC ---------- -->
+      <div id="docPaneFiles" class="d-none">
+        <div class="doc-bar">
+          <div class="doc-search">
+            <i class="bi bi-search"></i>
+            <input type="text" id="docSearch" data-i18n-ph="dSearchPh" autocomplete="off" />
+          </div>
+          <span class="grow"></span>
+          <button class="btn btn-ghost btn-sm" id="btnNewFolder">
+            <i class="bi bi-folder-plus"></i> <span data-i18n="dNewFolder"></span>
+          </button>
+          <button class="btn btn-primary btn-sm" id="btnDocUpload">
+            <i class="bi bi-upload"></i> <span data-i18n="dUpload"></span>
+          </button>
+          <input type="file" id="docFile" multiple hidden />
+        </div>
+
+        <nav class="doc-crumb" id="docCrumb"></nav>
+
+        <div class="drop d-none" id="docDrop">
+          <i class="bi bi-cloud-arrow-up drop-icon"></i>
+          <p class="drop-main" data-i18n="dDropMain"></p>
+          <p class="drop-sub" data-i18n="dDropSub"></p>
+        </div>
+
+        <div id="docBody"></div>
+      </div>
     </section>
   </div>
 
@@ -629,7 +672,7 @@
 <script src="app.js"></script>
 <script src="views.js"></script>
 <script src="perf.js"></script>
-<script src="minutes.js"></script>
+<script src="docs.js"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>
 </body>
 </html>

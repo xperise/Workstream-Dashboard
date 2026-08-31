@@ -1112,3 +1112,90 @@ table.ptable-edit input.form-control {
   .minute { gap: 12px; }
   .minute-date { flex-basis: 52px; }
 }
+
+/* ==========================================================================
+   TAB TÀI LIỆU — thanh công cụ, thư mục, thẻ tệp
+   ========================================================================== */
+.doc-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.doc-bar .grow { flex: 1 1 auto; }
+.doc-hint { font-size: 12px; color: var(--ink-3); }
+
+.doc-search { position: relative; display: flex; align-items: center; min-width: 240px; }
+.doc-search i { position: absolute; left: 11px; color: var(--ink-3); font-size: 12.5px; }
+.doc-search input {
+  width: 100%; border: 1px solid var(--line); border-radius: 999px;
+  padding: .42rem .8rem .42rem 31px; font-size: 13px;
+  background: var(--surface-2); color: var(--ink);
+}
+.doc-search input:focus {
+  outline: none; border-color: var(--violet); background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(168,85,247,.13);
+}
+
+/* Đường dẫn thư mục */
+.doc-crumb { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12.5px; }
+.crumb-sep { color: var(--ink-3); }
+.crumb-here { font-weight: 600; }
+
+/* Lưới thư mục */
+.folder-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.folder {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm); padding: 12px 13px; cursor: pointer; transition: .15s;
+}
+.folder:hover { border-color: var(--violet); background: var(--violet-soft); }
+.folder-ico { font-size: 20px; color: #EAB308; flex: 0 0 auto; }
+.folder-body { flex: 1 1 auto; min-width: 0; }
+.folder-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-meta { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.folder-acts { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.folder:hover .folder-acts { opacity: 1; }
+.folder-acts .icon-btn { width: 26px; height: 26px; font-size: 11px; }
+
+/* Lưới tài liệu */
+.doc-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 10px;
+}
+.doc {
+  display: flex; align-items: flex-start; gap: 11px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 12px 13px;
+}
+.doc:hover { border-color: #CBD5D0; }
+.doc-ico { font-size: 21px; flex: 0 0 auto; margin-top: 1px; }
+.doc-body { flex: 1 1 auto; min-width: 0; }
+.doc-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-meta { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.doc-move {
+  margin-top: 7px; width: 100%; font-size: 11.5px; color: var(--ink-2);
+  border: 1px solid var(--line); border-radius: 6px; padding: 2px 5px; background: var(--surface-2);
+}
+.doc-move:focus { outline: none; border-color: var(--violet); }
+.doc-acts { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.doc-acts .icon-btn { width: 26px; height: 26px; font-size: 11px; text-decoration: none; }
+
+/* Vùng thả tệp */
+#docDrop.is-over { border-color: var(--violet); background: var(--violet-soft); }
+
+/* Chưa có bảng */
+.doc-blocked {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--critical-soft); border: 1px solid #F6C7D1;
+  border-radius: var(--r-sm); padding: 12px 14px;
+  font-size: 12.5px; line-height: 1.6; color: #9B1C33;
+}
+.doc-blocked i { font-size: 15px; margin-top: 1px; flex: 0 0 auto; }
+.doc-blocked .linkbtn { color: #9B1C33; margin-top: 4px; }
+
+@media (max-width: 760px) {
+  .doc-search { min-width: 100%; order: -1; }
+  .folder-grid, .doc-grid { grid-template-columns: 1fr; }
+  .folder-acts { opacity: 1; }
+}
