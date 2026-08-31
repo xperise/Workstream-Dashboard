@@ -1429,6 +1429,15 @@ function bindEvents() {
    CHẾ ĐỘ — Workstream ↔ Performance
    Hai chế độ dùng chung thanh trên cùng, phần còn lại tách hẳn.
    ========================================================================== */
+/** Các view của chế độ Công việc — loại trừ view bên trong chế độ Số liệu.
+    Mô hình tài chính cũng dùng tên lớp .view, nếu không lọc thì hai bên
+    sẽ bật tắt lẫn nhau. */
+function wsViews() {
+  return Array.prototype.filter.call(
+    document.querySelectorAll(".view"),
+    v => !v.closest("#perfShell"));
+}
+
 function setMode(mode) {
   S.mode = mode;
   const perf = mode === "performance";
@@ -1443,7 +1452,7 @@ function setMode(mode) {
   el("searchBox").classList.toggle("d-none", perf);
   el("modeNotice").classList.toggle("d-none", perf || !S.demo);
   document.querySelectorAll(".ws-only").forEach(n => n.classList.toggle("d-none", perf));
-  document.querySelectorAll(".view").forEach(v =>
+  wsViews().forEach(v =>
     v.classList.toggle("is-active", !perf && v.id === "view-" + S.tab));
 
   try { localStorage.setItem("xp_mode", mode); } catch (e) {}
@@ -1456,7 +1465,7 @@ function switchTab(view) {
   if (view === "docs") Docs.enter();
   S.tab = view;
   document.querySelectorAll(".tab[data-view]").forEach(b => b.classList.toggle("is-active", b.dataset.view === view));
-  document.querySelectorAll(".view").forEach(v => v.classList.toggle("is-active", v.id === "view-" + view));
+  wsViews().forEach(v => v.classList.toggle("is-active", v.id === "view-" + view));
   renderAll();
 }
 

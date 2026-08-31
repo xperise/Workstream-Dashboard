@@ -412,163 +412,52 @@
        ================================================================== -->
   <div class="perf-shell d-none" id="perfShell">
 
-    <nav class="tabs perf-tabs" id="perfTabs">
-      <button class="tab is-active" data-ptab="pulse"    data-i18n="pTabPulse"></button>
-      <button class="tab" data-ptab="revenue"  data-i18n="pTabRevenue"></button>
-      <button class="tab" data-ptab="customer" data-i18n="pTabCustomer"></button>
-      <button class="tab" data-ptab="data"     data-i18n="pTabData"></button>
-      <span class="tabs-spacer"></span>
-      <span class="perf-conn" id="perfConn"></span>
-    </nav>
-
-    <div class="notice d-none" id="perfNotice"></div>
-
-    <!-- ---------- PULSE ---------- -->
-    <div class="pview is-active" id="pview-pulse">
-      <section class="exec">
-        <span class="exec-eyebrow" data-i18n="pExecEyebrow"></span>
-        <p class="exec-text" id="perfExecText"></p>
-        <div class="exec-chips" id="perfExecChips"></div>
-      </section>
-
-      <div class="perf-periodbar">
-        <label class="lbl" for="perfPeriod" data-i18n="pPeriod"></label>
-        <select class="form-select" id="perfPeriod"></select>
+    <!-- Thanh điều khiển mô hình: kịch bản + đặt lại + in -->
+    <div class="fm-bar">
+      <div class="seg" id="fmScn">
+      <button data-s="cons">Conservative</button>
+      <button data-s="base" class="on">Base</button>
+      <button data-s="up">Upside</button>
       </div>
-
-      <section id="perfYear"></section>
-
-      <section class="rails" id="perfRails"></section>
-
-      <div class="split split-5-7">
-        <section class="card">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow" data-i18n="signature"></span>
-              <h2 class="card-title" data-i18n="pRevVsPlanTitle"></h2>
-            </div>
-            <span class="card-note" data-i18n="pUnitBn"></span>
-          </div>
-          <div class="chart-wrap"><canvas id="pcRevenue"></canvas></div>
-        </section>
-        <section class="card">
-          <div class="card-head">
-            <div>
-              <span class="eyebrow" data-i18n="pArpcEyebrow"></span>
-              <h2 class="card-title" data-i18n="pArpcTitle"></h2>
-            </div>
-            <span class="card-note" data-i18n="pUnitMn"></span>
-          </div>
-          <div class="chart-wrap"><canvas id="pcArpc"></canvas></div>
-        </section>
-      </div>
-
-      <section class="card">
-        <div class="card-head"><h2 class="card-title" data-i18n="pMonthlyTable"></h2></div>
-        <div class="tablewrap"><table class="ptable" id="ptblPulse"></table></div>
-      </section>
+      <span class="fm-spacer"></span>
+      <button class="btn" id="fmReset">Reset drivers</button>
+      <button class="btn" id="fmPrint">Print</button>
     </div>
 
-    <!-- ---------- REVENUE ---------- -->
-    <div class="pview" id="pview-revenue">
-      <div class="split split-5-7">
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title" data-i18n="pByStream"></h2>
-            <span class="card-note" data-i18n="pUnitBn"></span>
-          </div>
-          <div class="chart-wrap"><canvas id="pcStack"></canvas></div>
-        </section>
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title" data-i18n="pShareTitle"></h2>
-            <span class="card-note" data-i18n="pUnitPct"></span>
-          </div>
-          <div class="chart-wrap"><canvas id="pcShare"></canvas></div>
-        </section>
-      </div>
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title" data-i18n="pStreamDetail"></h2>
-          <span class="card-note" data-i18n="pUnitVnd"></span>
-        </div>
-        <div class="tablewrap"><table class="ptable" id="ptblRevenue"></table></div>
-      </section>
+    <div class="tabs" id="fmTabs">
+      <button data-v="ov" class="on">Overview</button>
+      <button data-v="cu">Customers</button>
+      <button data-v="rm">Revenue &amp; Margin</button>
+      <button data-v="pa">People &amp; AI</button>
+      <button data-v="vl">Valuation</button>
+      <button data-v="uf">Use of Funds</button>
     </div>
 
-    <!-- ---------- CUSTOMER ---------- -->
-    <div class="pview" id="pview-customer">
-      <div class="split split-5-7">
-        <section class="card">
-          <div class="card-head"><h2 class="card-title" data-i18n="pTotalVsActive"></h2></div>
-          <div class="chart-wrap"><canvas id="pcUsers"></canvas></div>
-        </section>
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title" data-i18n="pActiveRate"></h2>
-            <span class="card-note" data-i18n="pUnitPct"></span>
-          </div>
-          <div class="chart-wrap"><canvas id="pcActive"></canvas></div>
-        </section>
-      </div>
-      <section class="card">
-        <div class="card-head"><h2 class="card-title" data-i18n="pCustomerDetail"></h2></div>
-        <div class="tablewrap"><table class="ptable" id="ptblCustomer"></table></div>
-      </section>
-    </div>
+    <div class="page">
+      <div class="banner" id="fmBanner"></div>
+      <div class="kpis" id="fmKpis"></div>
 
-    <!-- ---------- DATA ---------- -->
-    <div class="pview" id="pview-data">
-      <section class="card">
-        <div class="card-head">
+      <div class="card drivers-card">
+        <div class="chead">
           <div>
-            <span class="eyebrow" data-i18n="pUploadEyebrow"></span>
-            <h2 class="card-title" data-i18n="pUploadTitle"></h2>
+            <div class="eyebrow">Drivers</div>
+            <h2 class="ctitle">Change an assumption, every view updates</h2>
+            <div class="cnote">Defaults reproduce the workbook exactly. FY2025 is audited and never moves. Pricing and take-rate also touch FY2026, so the tie-out on the right turns red when a setting pulls FY2026 off the figure already issued.</div>
           </div>
+          <div class="cnote mono" id="fmTie"></div>
         </div>
-        <div class="uploader">
-          <div class="drop" id="perfDrop">
-            <input type="file" id="perfFile" accept=".xlsx,.xls,.csv" hidden />
-            <i class="bi bi-filetype-xlsx drop-icon"></i>
-            <p class="drop-main" id="dropMain"></p>
-            <p class="drop-sub" data-i18n="pDropSub"></p>
-          </div>
-          <div class="drop-side">
-            <button class="btn btn-ghost btn-sm" id="btnTemplate" data-i18n="pTemplate"></button>
-            <p class="hint" data-i18n="pTemplateHint"></p>
-          </div>
-        </div>
+        <div class="drivers" id="fmDrv"></div>
+      </div>
 
-        <div class="preview d-none" id="perfPreview">
-          <div class="preview-head">
-            <h3 class="card-title" data-i18n="pCheckTitle"></h3>
-            <div class="d-flex gap-2">
-              <button class="btn btn-ghost btn-sm" id="btnPerfCancel" data-i18n="cancel"></button>
-              <button class="btn btn-primary btn-sm" id="btnPerfCommit" data-i18n="pCommit"></button>
-            </div>
-          </div>
-          <ul class="checks" id="perfChecks"></ul>
-          <div class="tablewrap"><table class="ptable" id="ptblPreview"></table></div>
-        </div>
-      </section>
+      <div class="view on" id="v-ov"></div>
+      <div class="view" id="v-cu"></div>
+      <div class="view" id="v-rm"></div>
+      <div class="view" id="v-pa"></div>
+      <div class="view" id="v-vl"></div>
+      <div class="view" id="v-uf"></div>
 
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title" data-i18n="pTargetTitle"></h2>
-          <button class="btn btn-ghost btn-sm" id="btnSaveTargets" data-i18n="pSaveTargets"></button>
-        </div>
-        <p class="hint hint-pad" data-i18n="pTargetHint"></p>
-        <div class="tablewrap"><table class="ptable ptable-edit" id="ptblTargets"></table></div>
-      </section>
-
-      <section class="card">
-        <div class="card-head"><h2 class="card-title" data-i18n="pUploadLog"></h2></div>
-        <div class="tablewrap"><table class="ptable" id="ptblUploads"></table></div>
-      </section>
+      <div class="foot" id="fmFoot"></div>
     </div>
-
-
-
   </div>
 
 </main>

@@ -1,985 +1,896 @@
 /* ==========================================================================
-   XPERISE — PERFORMANCE DASHBOARD  ·  perf.js
-   Chế độ thứ hai của Workstream Intelligence: theo dõi doanh thu, khách hàng
-   và người dùng theo tháng, đối chiếu thực tế với kế hoạch.
+   XPERISE — CHẾ ĐỘ SỐ LIỆU  ·  perf.js
+   Mô hình tài chính FY2025A–FY2030E.
 
-   Dùng chung thanh trên cùng, ngôn ngữ, Supabase client và hàm toast của app
-   hiện có. Mọi thứ khác nằm gọn trong đối tượng Perf, không đụng biến toàn cục
-   của phần Workstream.
+   Toàn bộ con số được TÍNH tại thời điểm chạy từ bộ máy mô hình bên dưới,
+   không có số nào chép cứng. Đổi một giả định ở thanh Drivers thì mọi bảng,
+   biểu đồ và câu nhận xét đều đổi theo.
 
-   Bảng cần có trên Supabase: monthly_actual, monthly_target, uploads
-   và view v_monthly. Xem schema.sql.
+   FY2025 là số đã kiểm toán, không bao giờ thay đổi.
+
+   Module này không dùng Supabase — nó tự tính, nên init(sb) nhận tham số
+   chỉ để khớp giao diện mà app.js đang gọi.
    ========================================================================== */
 
-/* ==========================================================================
-   1. CHỮ HIỂN THỊ — gắn thêm vào bảng ngôn ngữ có sẵn
-   ========================================================================== */
+
+/* Chữ cho nút chuyển chế độ — trước đây nằm trong perf.js cũ, giữ lại nguyên
+   để nút Công việc / Số liệu và tên trên thanh tiêu đề không bị trắng. */
 Object.assign(I18N.vi, {
   modeWork: "Công việc", modePerf: "Số liệu",
-  modeWorkBrand: "Workstream Intelligence", modePerfBrand: "Performance Intelligence",
-
-  pTabPulse: "Nhịp kinh doanh", pTabRevenue: "Doanh thu",
-  pTabCustomer: "Khách hàng", pTabData: "Nhập số liệu",
-
-  pExecEyebrow: "Tóm tắt điều hành · tính từ số liệu đã nhập",
-  pPeriod: "Kỳ báo cáo",
-  pUnitBn: "tỷ VND", pUnitMn: "triệu VND", pUnitPct: "%", pUnitVnd: "VND",
-
-  pRevVsPlanTitle: "Doanh thu · thực tế và kế hoạch",
-  pArpcEyebrow: "Chất lượng khách hàng", pArpcTitle: "Doanh thu trên mỗi khách hàng",
-  pMonthlyTable: "Số liệu theo tháng",
-  pByStream: "Cơ cấu doanh thu theo hai chỉ số", pShareTitle: "Tỷ trọng chỉ số B",
-  pStreamDetail: "Chi tiết theo chỉ số",
-  pTotalVsActive: "Tổng và đang hoạt động", pActiveRate: "Tỷ lệ hoạt động",
-  pCustomerDetail: "Chi tiết theo tháng",
-
-  pUploadEyebrow: "Kế toán", pUploadTitle: "Tải file số liệu",
-  pDropMain: "Kéo file vào đây, hoặc <button class='linkbtn' id='perfPick'>chọn từ máy</button>",
-  pDropSub: "Nhận .xlsx, .xls, .csv — một tháng hoặc cả năm đều được",
-  pTemplate: "Tải file mẫu",
-  pTemplateHint: "Tên cột phải khớp file mẫu. Doanh thu ghi bằng VND nguyên, không ghi tỷ.",
-  pCheckTitle: "Kiểm tra trước khi ghi", pCommit: "Ghi vào hệ thống",
-  pTargetTitle: "Kế hoạch", pSaveTargets: "Lưu kế hoạch",
-  pTargetHint: "Nhập số kế hoạch cho từng tháng. Bỏ trống nếu chưa có.",
-  pUploadLog: "Lịch sử tải lên",
-
-  pRevenue: "Doanh thu", pCustomers: "Khách hàng", pUsers: "Người dùng",
-  pArpcShort: "Doanh thu / khách",
-  pPlan: "kế hoạch", pNoPlan: "chưa đặt kế hoạch", pActual: "Thực tế",
-  pForecast: "dự phóng", pActualLabel: "thực tế",
-  pVsPrev: "so tháng trước", pAchieved: "% đạt",
-  pTotal: "Tổng", pActive: "Hoạt động", pActiveShort: "% hoạt động",
-  pStreamA: "A. Recurring transaction revenue + Marketplace & Vendor", pStreamB: "B. Subscription + Transaction fee (usage) — token-usage based", pShare: "Tỷ trọng",
-  pWithLicence: "Có phí licence", pExLicence: "Loại phí licence",
-  pPeriodCol: "Kỳ", pType: "Loại",
-  pNoData: "Chưa có số liệu. Vào tab Nhập số liệu để tải lên.",
-  pNoDataShort: "Chưa có số liệu",
-  pConnecting: "Đang kết nối…", pConnOk: n => `${n} kỳ dữ liệu`,
-  pConnNone: "Chưa có dữ liệu", pConnBad: "Không kết nối được",
-  pNeedSupabase: "Chưa nối Supabase — phần số liệu cần kết nối để hoạt động.",
-  pSchemaMissing: "Chưa tìm thấy bảng số liệu trên Supabase. Chạy schema.sql rồi tải lại trang.",
-
-  pExecEmpty: "Chưa có kỳ nào được nhập. Tải file số liệu để hệ thống bắt đầu theo dõi.",
-  pExecLine: (m, r, p) => `Kỳ <em>${m}</em> đạt <b>${r}</b> tỷ doanh thu, tương đương <b>${p}</b> kế hoạch.`,
-  pExecLineNoPlan: (m, r) => `Kỳ <em>${m}</em> đạt <b>${r}</b> tỷ doanh thu. Chưa đặt kế hoạch cho kỳ này.`,
-  pChipGrowth: v => `Doanh thu ${v >= 0 ? "tăng" : "giảm"} ${Math.abs(v).toFixed(1)}% so tháng trước`,
-  pChipArpc: v => `Doanh thu mỗi khách ${v >= 0 ? "tăng" : "giảm"} ${Math.abs(v).toFixed(1)}%`,
-  pChipActive: v => `${v.toFixed(1)}% khách hàng có phát sinh giao dịch`,
-  pChipBelow: v => `Còn thiếu ${v.toFixed(1)}% so với kế hoạch`,
-
-  pRowsValid: (n, a, o) => `${n} kỳ hợp lệ · ${a} thêm mới · ${o} ghi đè`,
-  pRowsOverwrite: list => `Sẽ ghi đè: ${list}`,
-  pTargetsFound: n => `Đọc được số kế hoạch cho ${n} kỳ từ sheet Target.`,
-  pTargetsOnly: n => `Chỉ có số kế hoạch: ${n} kỳ. Bấm ghi để lưu.`,
-  pColsIgnored: (n, list) => `Bỏ qua ${n} cột không nhận diện được: ${list}`,
-  pBadRows: list => `Không đọc được kỳ báo cáo ở dòng: ${list}`,
-  pNoHeader: 'Không tìm thấy dòng tiêu đề có cột "period". Tải file mẫu để xem đúng định dạng.',
-  pNoValidRows: "Không có dòng hợp lệ nào.",
-  pDupPeriods: list => `Kỳ bị lặp trong file: ${list}`,
-  pDropWarn: m => `${m}: số khách hàng giảm hơn 20% so với kỳ trước — kiểm tra lại.`,
-  pZeroRev: m => `${m}: tổng doanh thu bằng 0.`,
-  pFileEmpty: "File rỗng hoặc không có sheet nào.",
-  pReadFail: e => `Không đọc được file: ${e}`,
-  pFileUnreadable: "trình duyệt không mở được tệp",
-  pNoXlsxLib: "Thiếu thư viện đọc Excel (SheetJS). Kiểm tra thẻ script xlsx trong index.html và kết nối mạng, rồi tải lại trang.",
-  pSheetsSeen: names => `Các sheet tìm thấy trong file: ${names}`,
-  pSkippedBlank: list => `Bỏ qua các tháng chưa có số liệu: ${list}`,
-  pGap: "Còn lại theo kế hoạch",
-  pShortB: "Chỉ số B",
-  pYtd: "Lũy kế đến nay", pFy: "Cả năm 2026", pRemaining: "Còn phải đạt",
-  pProgress: "Tiến độ năm",
-  pProgressLine: (a, b, p) => `Đã đạt <b>${a}</b> trong tổng kế hoạch <b>${b}</b> tỷ cho năm 2026, tương đương <b>${p}</b>.`,
-  pCommitted: (a, t) => t ? `Đã ghi ${a} kỳ thực tế và ${t} kỳ kế hoạch` : `Đã ghi ${a} kỳ dữ liệu`,
-  pCommitFail: e => `Ghi không thành công: ${e}`,
-  pSavedTargets: n => `Đã lưu kế hoạch cho ${n} kỳ`,
-  pNoTargets: "Chưa có số kế hoạch nào để lưu.",
-  pTargetsFirst: "Tải số liệu thực tế trước, rồi nhập kế hoạch cho từng kỳ.",
-  pUpTime: "Thời điểm", pUpFile: "Tên file", pUpRows: "Số dòng", pUpNote: "Ghi chú"
+  modeWorkBrand: "Workstream Intelligence", modePerfBrand: "Performance Intelligence"
 });
-
 Object.assign(I18N.en, {
   modeWork: "Workstream", modePerf: "Performance",
-  modeWorkBrand: "Workstream Intelligence", modePerfBrand: "Performance Intelligence",
-
-  pTabPulse: "Business pulse", pTabRevenue: "Revenue",
-  pTabCustomer: "Customers", pTabData: "Data entry",
-
-  pExecEyebrow: "Executive summary · derived from loaded data",
-  pPeriod: "Period",
-  pUnitBn: "VND bn", pUnitMn: "VND m", pUnitPct: "%", pUnitVnd: "VND",
-
-  pRevVsPlanTitle: "Revenue · actual against plan",
-  pArpcEyebrow: "Customer quality", pArpcTitle: "Revenue per customer",
-  pMonthlyTable: "Monthly figures",
-  pByStream: "Revenue by line", pShareTitle: "Line B share",
-  pStreamDetail: "Detail by line",
-  pTotalVsActive: "Total and active", pActiveRate: "Active rate",
-  pCustomerDetail: "Monthly detail",
-
-  pUploadEyebrow: "Finance", pUploadTitle: "Upload figures",
-  pDropMain: "Drop a file here, or <button class='linkbtn' id='perfPick'>choose from your computer</button>",
-  pDropSub: "Accepts .xlsx, .xls, .csv — a single month or a full year",
-  pTemplate: "Download template",
-  pTemplateHint: "Column names must match the template. Revenue in whole dong, not billions.",
-  pCheckTitle: "Review before saving", pCommit: "Save to system",
-  pTargetTitle: "Plan", pSaveTargets: "Save plan",
-  pTargetHint: "Enter the plan for each month. Leave blank where there is none.",
-  pUploadLog: "Upload history",
-
-  pRevenue: "Revenue", pCustomers: "Customers", pUsers: "Users",
-  pArpcShort: "Revenue / customer",
-  pPlan: "plan", pNoPlan: "no plan set", pActual: "Actual",
-  pForecast: "forecast", pActualLabel: "actual",
-  pVsPrev: "vs prior month", pAchieved: "% of plan",
-  pTotal: "Total", pActive: "Active", pActiveShort: "% active",
-  pStreamA: "A. Recurring transaction revenue + Marketplace & Vendor", pStreamB: "B. Subscription + Transaction fee (usage) — token-usage based", pShare: "Share",
-  pWithLicence: "Including licence", pExLicence: "Excluding licence",
-  pPeriodCol: "Period", pType: "Type",
-  pNoData: "No figures yet. Use the Data entry tab to upload.",
-  pNoDataShort: "No data",
-  pConnecting: "Connecting…", pConnOk: n => `${n} periods loaded`,
-  pConnNone: "No data yet", pConnBad: "Cannot connect",
-  pNeedSupabase: "Supabase is not connected — the performance side needs it to work.",
-  pSchemaMissing: "Performance tables not found on Supabase. Run schema.sql and reload.",
-
-  pExecEmpty: "No periods loaded yet. Upload a data file to start tracking.",
-  pExecLine: (m, r, p) => `<em>${m}</em> delivered <b>${r}</b>bn of revenue, <b>${p}</b> of plan.`,
-  pExecLineNoPlan: (m, r) => `<em>${m}</em> delivered <b>${r}</b>bn of revenue. No plan set for this period.`,
-  pChipGrowth: v => `Revenue ${v >= 0 ? "up" : "down"} ${Math.abs(v).toFixed(1)}% on the prior month`,
-  pChipArpc: v => `Revenue per customer ${v >= 0 ? "up" : "down"} ${Math.abs(v).toFixed(1)}%`,
-  pChipActive: v => `${v.toFixed(1)}% of customers transacted`,
-  pChipBelow: v => `${v.toFixed(1)}% short of plan`,
-
-  pRowsValid: (n, a, o) => `${n} valid periods · ${a} new · ${o} overwritten`,
-  pRowsOverwrite: list => `Will overwrite: ${list}`,
-  pTargetsFound: n => `Plan figures read for ${n} periods from the Target sheet.`,
-  pTargetsOnly: n => `Plan figures only: ${n} periods. Press save to store them.`,
-  pColsIgnored: (n, list) => `Ignored ${n} unrecognised columns: ${list}`,
-  pBadRows: list => `Could not read the period on rows: ${list}`,
-  pNoHeader: 'No header row with a "period" column. Download the template for the expected format.',
-  pNoValidRows: "No valid rows found.",
-  pDupPeriods: list => `Duplicate periods in the file: ${list}`,
-  pDropWarn: m => `${m}: customer count fell by more than 20% — please check.`,
-  pZeroRev: m => `${m}: total revenue is zero.`,
-  pFileEmpty: "The file is empty or has no sheets.",
-  pReadFail: e => `Could not read the file: ${e}`,
-  pFileUnreadable: "the browser could not open the file",
-  pNoXlsxLib: "The Excel reader (SheetJS) is missing. Check the xlsx script tag in index.html and your connection, then reload.",
-  pSheetsSeen: names => `Sheets found in the file: ${names}`,
-  pSkippedBlank: list => `Skipped months with no figures yet: ${list}`,
-  pGap: "Remaining to plan",
-  pShortB: "Line B",
-  pYtd: "Year to date", pFy: "Full year 2026", pRemaining: "Still to deliver",
-  pProgress: "Year progress",
-  pProgressLine: (a, b, p) => `<b>${a}</b> delivered of the <b>${b}</b>bn full-year plan, or <b>${p}</b>.`,
-  pCommitted: (a, t) => t ? `Saved ${a} actual periods and ${t} plan periods` : `Saved ${a} periods`,
-  pCommitFail: e => `Save failed: ${e}`,
-  pSavedTargets: n => `Plan saved for ${n} periods`,
-  pNoTargets: "No plan figures to save.",
-  pTargetsFirst: "Upload actuals first, then enter the plan for each period.",
-  pUpTime: "When", pUpFile: "File", pUpRows: "Rows", pUpNote: "Note"
+  modeWorkBrand: "Workstream Intelligence", modePerfBrand: "Performance Intelligence"
 });
 
-/* ==========================================================================
-   2. MÔ-ĐUN
-   ========================================================================== */
 const Perf = (function () {
 
-  /* --- 2.1. Dòng doanh thu — sửa ở đây là mọi nơi đổi theo -------------- */
-  /* Doanh thu chỉ có hai chỉ số. Tên giữ nguyên như bản gửi investor,
-     không tách nhỏ, không thêm dòng nào khác. */
-  const STREAMS = [
-    { key: "rev_a", group: "A", color: "#0D9488",
-      vi: "A. Recurring transaction revenue + Marketplace & Vendor",
-      en: "A. Recurring transaction revenue + Marketplace & Vendor" },
-    { key: "rev_b", group: "B", color: "#A855F7",
-      vi: "B. Subscription + Transaction fee (usage) — token-usage based",
-      en: "B. Subscription + Transaction fee (usage) — token-usage based" }
+  var started = false;
+
+  /* =====================================================================
+     XPERISE MODEL ENGINE
+     Mirrors Xperise_Financial_Model_FY2025A_FY2030E.xlsx cell for cell.
+     Every figure the dashboard shows is produced here at runtime.
+     ===================================================================== */
+  var YRS = ["FY2025A", "FY2026E", "FY2027E", "FY2028E", "FY2029E", "FY2030E"];
+  var FX = 25500;
+  var AUDITED_REV_VND = 45804717360;
+  var AUDITED_PAYROLL = 354128;
+
+  var BASE = {
+    ai:        [0.30, 0.58, 0.78, 0.88, 0.93, 0.95],
+    k:         3.0,
+    hunters:   [3, 5, 32, 43, 53, 64],
+    baseQuota: 45,
+    channel:   [0, 2117, 2800, 3400, 3800, 4300],
+    churn:     [0, 0.08, 0.08, 0.08, 0.08, 0.08],
+    t1:        [0, 50, 130, 240, 380, 550],
+    t2:        [0, 300, 900, 1900, 3200, 5000],
+    g1t:       [0, 307e6, 265e6, 225e6, 195e6, 172e6],
+    g1m:       [0, 50e6, 55e6, 60e6, 65e6, 70e6],
+    g2f:       [0, 20e6, 22e6, 24e6, 26e6, 28e6],
+    g2m:       [0, 10e6, 11e6, 12e6, 13e6, 14e6],
+    g3m:       [0, 4e6, 5e6, 5.5e6, 6e6, 6.5e6],
+    fnbRatio:  0.5,
+    trTravelMP: 0.03, trMobMP: 0.10, trFnbMP: 0.05, trSaaS: 0.02,
+    lic1:      [0, 18000, 24000, 30000, 34000, 38000],
+    lic2:      [0, 1200, 1800, 2400, 2900, 3400],
+    lic3:      [0, 90, 220, 340, 450, 560],
+    l4:        [0, 0, 2.5e6, 7e6, 14e6, 30e6],
+    usAcct:    [0, 0, 150, 250, 900, 2000],
+    usArpu:    [0, 0, 5000, 6000, 7500, 8500],
+    usRatio:   [0, 0, 30, 30, 40, 50],
+    usBase:    [0, 0, 3, 3, 3, 3],
+    svcGM:     [0.06097, 0.08, 0.10, 0.11, 0.12, 0.13],
+    cts1:      [0.15, 0.14, 0.12, 0.105, 0.09, 0.085],
+    cts2:      [0.30, 0.28, 0.26, 0.245, 0.23, 0.22],
+    cts4:      0.20,
+    gtm:       [1247, 550e3, 1.6e6, 2.6e6, 3.6e6, 4.6e6],
+    ga:        [128e3, 550e3, 1.0e6, 1.45e6, 1.85e6, 2.25e6],
+    cac:       [0, 180, 150, 130, 115, 100],
+    comm:      0.06,
+    capex:     [0, 900e3, 1.6e6, 1.4e6, 1.2e6, 1.2e6],
+    amortLife: 3,
+    cit:       [0, 0, 0.20, 0.20, 0.20, 0.20],
+    rs1: 25, rc1: 25, rs2: 50, rc2: 70, r3: 150,
+    tech:      [8, 15, 28, 40, 50, 60],
+    gaFte:     [6, 11, 16, 21, 25, 29],
+    opsPerM:   1.7,
+    cCom: 13000, cOps: 11000, cTech: 30000, cGa: 22000, cUs: 110000,
+    clevel:    [0, 157e3, 966e3, 1.41e6, 1.41e6, 1.41e6],
+    mult: { l1: [10, 14, 22], l2: [5, 7, 10], l3: [1.0, 1.5, 2.0], l4: [12, 14, 20] },
+    avg2026: [32, 110, 773.75],
+    pack2026Rev: 158106959474,
+    pack2026Cust: 2500
+  };
+
+  /* Controls the dashboard exposes. Defaults reproduce the workbook. */
+  var DEFAULTS = {
+    sellers2030: 64,
+    ai2030: 0.95,
+    licence: 1.0,
+    channel2030: 4300,
+    takeRate: 1.0,
+    churn: 0.08,
+    round: 1.0,
+    scenario: "base"
+  };
+
+  /* Round size elasticity, stated openly in the UI so it can be argued with.
+     Each $1m above the $1m core plan funds an extra 250 US accounts by FY2030
+     and lifts the automation ceiling by 1 point, to a hard cap of 99%. */
+  var CAP_US_PER_M = 250;
+  var CAP_AI_PER_M = 0.01;
+
+  function ramp(base, endValue, baseEnd) {
+    // Scale the FY2027-FY2030 path so it lands on endValue, keeping its shape.
+    var f = baseEnd === 0 ? 0 : endValue / baseEnd;
+    return base.map(function (v, i) { return i < 2 ? v : v * f; });
+  }
+
+  function compute(u) {
+    var B = BASE, i;
+    var extraM = Math.max(0, u.round - 1.0);
+
+    /* ---- drivers -------------------------------------------------------- */
+    var aiCeil = Math.min(0.99, u.ai2030 + CAP_AI_PER_M * extraM);
+    var ai = B.ai.slice();
+    var aiShape = [0, 0, 20/37, 30/37, 35/37, 1.0]; // FY27-30 share of the FY26->FY30 gap
+    for (i = 2; i < 6; i++) ai[i] = B.ai[1] + (aiCeil - B.ai[1]) * aiShape[i];
+
+    var capMult = ai.map(function (a) { return 1 + B.k * Math.max(0, a - B.ai[1]); });
+    var quota = capMult.map(function (m) { return B.baseQuota * m; });
+
+    var hunters = ramp(B.hunters, u.sellers2030, B.hunters[5]);
+    var channel = ramp(B.channel, u.channel2030, B.channel[5]);
+    var usAcct = ramp(B.usAcct, B.usAcct[5] + CAP_US_PER_M * extraM, B.usAcct[5]);
+
+    /* ---- accounts ------------------------------------------------------- */
+    var open = [], churn = [], sales = [], newLogos = [], close = [];
+    for (i = 0; i < 6; i++) {
+      if (i === 0) { open[0] = 0; churn[0] = 0; sales[0] = 0; newLogos[0] = 0; close[0] = 172; continue; }
+      open[i] = close[i - 1];
+      churn[i] = -open[i] * u.churn;
+      sales[i] = hunters[i] * quota[i];
+      newLogos[i] = sales[i] + channel[i];
+      close[i] = Math.round(open[i] + churn[i] + newLogos[i]);
+    }
+
+    var t1 = B.t1.slice(), t2 = B.t2.slice(), t3 = [];
+    for (i = 0; i < 6; i++) {
+      t1[i] = Math.min(t1[i], close[i]);
+      t2[i] = Math.min(t2[i], Math.max(0, close[i] - t1[i]));
+      t3[i] = Math.max(0, close[i] - t1[i] - t2[i]);
+    }
+
+    var a1 = [], a2 = [], a3 = [], aT = [];
+    for (i = 0; i < 6; i++) {
+      if (i === 0) { a1[0] = 0; a2[0] = 0; a3[0] = 172; }
+      else if (i === 1) { a1[1] = B.avg2026[0]; a2[1] = B.avg2026[1]; a3[1] = B.avg2026[2]; }
+      else { a1[i] = (t1[i - 1] + t1[i]) / 2; a2[i] = (t2[i - 1] + t2[i]) / 2; a3[i] = (t3[i - 1] + t3[i]) / 2; }
+      aT[i] = a1[i] + a2[i] + a3[i];
+    }
+
+    /* ---- GMV ------------------------------------------------------------ */
+    var gTravel = [], gFnb = [], gMob = [], gTot = [], gUsd = [];
+    for (i = 0; i < 6; i++) {
+      gTravel[i] = a1[i] * B.g1t[i] * 12;
+      gFnb[i] = (a1[i] * B.g1t[i] * B.fnbRatio + a2[i] * B.g2f[i]) * 12;
+      gMob[i] = (a1[i] * B.g1m[i] + a2[i] * B.g2m[i] + a3[i] * B.g3m[i]) * 12;
+      gTot[i] = gTravel[i] + gFnb[i] + gMob[i];
+      gUsd[i] = gTot[i] / FX;
+    }
+
+    /* ---- revenue by layer ----------------------------------------------- */
+    var L1 = [], L2 = [], L3 = [], L4 = [], US = [], rev = [];
+    for (i = 0; i < 6; i++) {
+      var l1a = gTot[i] * B.trSaaS * u.takeRate / FX;
+      var l1b = (a1[i] * B.lic1[i] + a2[i] * B.lic2[i] + a3[i] * B.lic3[i]) * u.licence;
+      L1[i] = B.lic1[i] === 0 ? 0 : l1a + l1b;
+      L2[i] = (gTravel[i] * B.trTravelMP + gMob[i] * B.trMobMP + gFnb[i] * B.trFnbMP) * u.takeRate / FX;
+      L3[i] = i === 0 ? AUDITED_REV_VND / FX : gTravel[i] / FX;
+      L4[i] = B.l4[i];
+      US[i] = usAcct[i] * B.usArpu[i];
+      rev[i] = L1[i] + L2[i] + L3[i] + L4[i] + US[i];
+    }
+
+    /* ---- resource plan --------------------------------------------------- */
+    var fComm = [], fOps = [], fUs = [], fTot = [], fNoAi = [], payroll = [];
+    var t3sell = [], csam = [];
+    for (i = 0; i < 6; i++) {
+      var prevT1 = i === 0 ? 0 : t1[i - 1];
+      var prevT2 = i === 0 ? 0 : t2[i - 1];
+      t3sell[i] = t3[i] / B.r3 * 0.6 / capMult[i];
+      csam[i] = (prevT1 / B.rc1 + prevT2 / B.rc2 + t3[i] / B.r3 * 0.4) / capMult[i];
+      fComm[i] = hunters[i] + t3sell[i] + csam[i];
+      fOps[i] = gUsd[i] / 1e6 * B.opsPerM * (1 - ai[i]) / (1 - B.ai[1]);
+      fUs[i] = usAcct[i] === 0 ? 0 : B.usBase[i] + usAcct[i] / B.usRatio[i];
+      fTot[i] = fComm[i] + fOps[i] + B.tech[i] + B.gaFte[i] + fUs[i];
+      fNoAi[i] = hunters[i] * capMult[i] + prevT1 / B.rc1 + prevT2 / B.rc2 + t3[i] / B.r3
+               + gUsd[i] / 1e6 * B.opsPerM + B.tech[i] + B.gaFte[i] + fUs[i];
+      payroll[i] = fComm[i] * B.cCom + fOps[i] * B.cOps + B.tech[i] * B.cTech
+                 + B.gaFte[i] * B.cGa + fUs[i] * B.cUs + B.clevel[i];
+    }
+    payroll[0] = AUDITED_PAYROLL;   // FY2025 reconciled to the audited accounts
+
+    /* ---- P&L ------------------------------------------------------------- */
+    var cogs = [], gp = [], cts = [], cacC = [], commC = [], opex = [], fixed = [],
+        ebitda = [], da = [], ebit = [], tax = [], ni = [];
+    for (i = 0; i < 6; i++) {
+      cogs[i] = -L3[i] * (1 - B.svcGM[i]);
+      gp[i] = rev[i] + cogs[i];
+      cts[i] = (L1[i] + US[i]) * B.cts1[i] + L2[i] * B.cts2[i] + L4[i] * B.cts4;
+      cacC[i] = newLogos[i] * B.cac[i];
+      commC[i] = (L1[i] + L2[i] + L4[i] + US[i]) * B.comm;
+      opex[i] = payroll[i] + cts[i] + B.gtm[i] + B.ga[i] + cacC[i] + commC[i];
+      fixed[i] = payroll[i] + B.gtm[i] + B.ga[i];
+      ebitda[i] = gp[i] - opex[i];
+    }
+    var C = B.capex, L = B.amortLife;
+    da = [30000, C[1] / L, (C[1] + C[2]) / L, (C[1] + C[2] + C[3]) / L,
+          (C[2] + C[3] + C[4]) / L, (C[3] + C[4] + C[5]) / L];
+    for (i = 0; i < 6; i++) {
+      ebit[i] = ebitda[i] - da[i];
+      tax[i] = -Math.max(0, ebit[i]) * B.cit[i];
+      ni[i] = ebit[i] + tax[i];
+    }
+
+    /* ---- valuation -------------------------------------------------------- */
+    var sc = { cons: 0, base: 1, up: 2 }[u.scenario];
+    var ev = [], evAll = { cons: [], base: [], up: [] };
+    ["cons", "base", "up"].forEach(function (name, j) {
+      for (i = 0; i < 6; i++) {
+        evAll[name][i] = (L1[i] + US[i]) * B.mult.l1[j] + L2[i] * B.mult.l2[j]
+                       + L3[i] * B.mult.l3[j] + L4[i] * B.mult.l4[j];
+      }
+    });
+    ev = evAll[u.scenario];
+
+    /* ---- derived indices --------------------------------------------------- */
+    var idx = function (a) { return a.map(function (v) { return a[1] ? v / a[1] : 0; }); };
+
+    return {
+      yrs: YRS, ai: ai, capMult: capMult, quota: quota, hunters: hunters, channel: channel,
+      open: open, churn: churn, sales: sales, newLogos: newLogos, close: close,
+      t1: t1, t2: t2, t3: t3, a1: a1, a2: a2, a3: a3, aT: aT,
+      gTravel: gTravel, gFnb: gFnb, gMob: gMob, gUsd: gUsd,
+      L1: L1, L2: L2, L3: L3, L4: L4, US: US, rev: rev,
+      cogs: cogs, gp: gp, cts: cts, cac: cacC, comm: commC, opex: opex, fixed: fixed,
+      payroll: payroll, ebitda: ebitda, da: da, ebit: ebit, tax: tax, ni: ni,
+      fComm: fComm, fOps: fOps, fUs: fUs, fTot: fTot, fNoAi: fNoAi,
+      tech: B.tech, gaFte: B.gaFte, usAcct: usAcct,
+      ev: ev, evAll: evAll,
+      revIdx: idx(rev), fixIdx: idx(fixed), hcIdx: idx(fTot),
+      gm: gp.map(function (v, i) { return rev[i] ? v / rev[i] : 0; }),
+      em: ebitda.map(function (v, i) { return rev[i] ? v / rev[i] : 0; }),
+      mix: rev.map(function (v, i) { return v ? (v - L3[i]) / v : 0; }),
+      ops1k: gUsd.map(function (g, i) { return g ? fOps[i] * B.cOps / (g / 1000) : 0; }),
+      revFte: rev.map(function (v, i) { return fTot[i] ? v / fTot[i] : 0; }),
+      avoided: fNoAi.map(function (v, i) { return v - fTot[i]; }),
+      avoidedPay: fNoAi.map(function (v, i) { return (v - fTot[i]) * B.cCom; }),
+      tie2026: rev[1] - BASE.pack2026Rev / FX,
+      cust2026: close[1]
+    };
+  }
+
+  if (typeof module !== "undefined") module.exports = { compute: compute, DEFAULTS: DEFAULTS, BASE: BASE };
+
+
+
+  /* ===================================================================
+     RENDER LAYER — every figure below is read from compute(), never typed.
+     =================================================================== */
+  var U = Object.assign({}, DEFAULTS);
+  var R = null;
+  var el = function (id) { return document.getElementById(id); };
+
+  /* ---------- formatters ---------- */
+  function f(v, d) {
+    if (v === null || v === undefined || !isFinite(v)) return "\u2013";
+    d = d || 0;
+    return v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  function m$(v, d) {
+    if (!isFinite(v)) return "\u2013";
+    d = (d === undefined) ? 1 : d;
+    var s = "$" + f(Math.abs(v) / 1e6, d) + "m";
+    return v < 0 ? "(" + s + ")" : s;
+  }
+  function d$(v) {
+    if (!isFinite(v)) return "\u2013";
+    var s = "$" + f(Math.abs(v), 0);
+    return v < 0 ? "(" + s + ")" : s;
+  }
+  function pc(v, d) { return isFinite(v) ? f(v * 100, d === undefined ? 0 : d) + "%" : "\u2013"; }
+  function x_(v, d) { return isFinite(v) ? f(v, d === undefined ? 1 : d) + "x" : "\u2013"; }
+  function neg(v, s) { return v < 0 ? '<span class="neg">' + s + "</span>" : s; }
+
+  /* ---------- small helpers ---------- */
+  function row(label, desc, vals, fmt, cls) {
+    var h = '<tr class="' + (cls || "") + '"><td><span class="tlabel">' + label + "</span>" +
+            (desc ? '<div class="tdesc">' + desc + "</div>" : "") + "</td>";
+    for (var i = 0; i < vals.length; i++) {
+      var s = fmt(vals[i]);
+      h += '<td class="num">' + (typeof vals[i] === "number" && vals[i] < 0 ? '<span class="neg">' + s + "</span>" : s) + "</td>";
+    }
+    return h + "</tr>";
+  }
+  function tbl(head, body, firstHead) {
+    var h = '<table><thead><tr><th>' + (firstHead || "") + "</th>";
+    head.forEach(function (x) { h += "<th>" + x + "</th>"; });
+    return h + "</tr></thead><tbody>" + body + "</tbody></table>";
+  }
+  function card(eyebrow, title, note, inner, extraClass) {
+    return '<div class="card ' + (extraClass || "") + '"><div class="chead"><div>' +
+      '<div class="eyebrow">' + eyebrow + "</div>" +
+      '<h2 class="ctitle">' + title + "</h2>" +
+      (note ? '<div class="cnote">' + note + "</div>" : "") +
+      "</div></div>" + inner + "</div>";
+  }
+  function legend(items) {
+    var h = '<div class="legend">';
+    items.forEach(function (it) {
+      h += '<div class="lg"><span class="dot" style="background:' + it[1] + '"></span>' + it[0] + "</div>";
+    });
+    return h + "</div>";
+  }
+  var SERIES = [
+    ["SaaS &amp; intelligence", "var(--s-saas)", "L1"],
+    ["Embedded finance", "var(--s-emb)", "L4"],
+    ["United States", "var(--s-us)", "US"],
+    ["Marketplace", "var(--s-mkt)", "L2"],
+    ["Service trading", "var(--s-svc)", "L3"]
   ];
-  const sName = s => (typeof LANG !== "undefined" && LANG === "en") ? s.en : s.vi;
 
-  const BN = 1e9, MN = 1e6;
-  const P = {
-    sb: null, ready: false, rows: [], targets: [],
-    ptab: "pulse", staged: null, stagedTargets: null, charts: {}
-  };
-
-  /* --- 2.2. Tiện ích ----------------------------------------------------- */
-  const q  = id => document.getElementById(id);
-  const vnd = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
-  const bn  = (n, d = 3) => (n == null ? "—" : (n / BN).toFixed(d));
-  const mn  = (n, d = 2) => (n == null ? "—" : (n / MN).toFixed(d));
-  const int = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
-  const pc  = n => (n == null ? "—" : Number(n).toFixed(1) + "%");
-  const esc = str => String(str == null ? "" : str)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-  function mlabel(p) {
-    const d = new Date(p + "T00:00:00");
-    if (isNaN(d)) return String(p);
-    return d.toLocaleString("en-GB", { month: "short" }) + "-" + String(d.getFullYear()).slice(2);
-  }
-  const grpTotal = (r, g) => STREAMS.filter(s => s.group === g)
-    .reduce((a, s) => a + (Number(r[s.key]) || 0), 0);
-  /* Tháng chưa có số thực tế trả về null, KHÔNG phải 0.
-     0 nghĩa là doanh thu bằng không; null nghĩa là chưa có số. */
-  const hasAct  = r => r.has_actual !== false && r.total_revenue !== null;
-  const revTotal = r => hasAct(r) ? grpTotal(r, "A") + grpTotal(r, "B") : null;
-
-  /* toast của app chính; nếu chưa có thì im lặng */
-  function say(msg, kind) {
-    if (typeof toast === "function") toast(msg, kind || "ok");
-    else console.log(msg);
-  }
-
-  /* ==========================================================================
-     3. NẠP DỮ LIỆU
-     ========================================================================== */
-  function init(sbClient) { P.sb = sbClient || null; }
-
-  function conn(state, text) {
-    const c = q("perfConn");
-    if (!c) return;
-    c.className = "perf-conn " + (state || "");
-    c.textContent = text;
-  }
-
-  async function load() {
-    if (!P.sb) {
-      conn("bad", t("pConnBad"));
-      notice(t("pNeedSupabase"));
-      P.rows = []; P.targets = [];
-      renderAll();
-      return;
+  /* ---------- charts (hand-written SVG) ---------- */
+  function stackChart(keys, colours, labels, opt) {
+    opt = opt || {};
+    var W = 620, H = opt.h || 250, padL = 44, padB = 34, padT = 10;
+    var tot = R.rev.map(function (_, i) {
+      return keys.reduce(function (a, k) { return a + R[k][i]; }, 0);
+    });
+    var max = Math.max.apply(null, tot) * 1.06 || 1;
+    var y0 = H - padB, plot = H - padB - padT;
+    var bw = (W - padL - 8) / 6 * 0.56, step = (W - padL - 8) / 6;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + (opt.aria || "chart") + '">';
+    for (var g = 0; g <= 3; g++) {
+      var yy = padT + plot * g / 3;
+      s += '<line x1="' + padL + '" y1="' + yy + '" x2="' + W + '" y2="' + yy + '" stroke="var(--line-soft)"/>';
+      s += '<text x="' + (padL - 7) + '" y="' + (yy + 3.5) + '" text-anchor="end" font-size="9.5" fill="var(--ink-3)" font-family="var(--font-mono)">' +
+           (opt.fmtAxis ? opt.fmtAxis(max * (3 - g) / 3) : f(max * (3 - g) / 3, 0)) + "</text>";
     }
-    conn("", t("pConnecting"));
-    try {
-      const [a, tg] = await Promise.all([
-        P.sb.from("v_monthly").select("*").order("period"),
-        P.sb.from("monthly_target").select("*").order("period")
-      ]);
-      if (a.error) throw a.error;
-      if (tg.error) throw tg.error;
-
-      P.rows = a.data || [];
-      P.targets = tg.data || [];
-      P.ready = true;
-      notice(null);
-      conn(P.rows.length ? "ok" : "", P.rows.length ? t("pConnOk")(P.rows.length) : t("pConnNone"));
-      renderAll();
-      loadUploads();
-    } catch (e) {
-      console.error(e);
-      P.rows = []; P.targets = [];
-      conn("bad", t("pConnBad"));
-      // bảng chưa tồn tại là lỗi hay gặp nhất, nói rõ cách xử lý
-      const missing = /relation|does not exist|schema cache|not find/i.test(e.message || "");
-      notice(missing ? t("pSchemaMissing") : (e.message || String(e)));
-      renderAll();
+    s += '<line x1="' + padL + '" y1="' + y0 + '" x2="' + W + '" y2="' + y0 + '" stroke="var(--ink)" stroke-width="1"/>';
+    for (var i = 0; i < 6; i++) {
+      var x = padL + step * i + (step - bw) / 2, base = y0;
+      for (var k = keys.length - 1; k >= 0; k--) {
+        var hgt = R[keys[k]][i] / max * plot;
+        if (hgt > 0.2) {
+          s += '<rect x="' + x.toFixed(1) + '" y="' + (base - hgt).toFixed(1) + '" width="' + bw.toFixed(1) +
+               '" height="' + hgt.toFixed(1) + '" fill="' + colours[k] + '"><title>' + labels[k] + " " +
+               R.yrs[i] + ": " + m$(R[keys[k]][i]) + "</title></rect>";
+        }
+        base -= hgt;
+      }
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 + 14) + '" text-anchor="middle" font-size="9.5" fill="var(--ink-3)" font-family="var(--font-mono)">' + R.yrs[i] + "</text>";
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 + 27) + '" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)" font-family="var(--font-mono)">' + m$(tot[i]) + "</text>";
     }
+    return s + "</svg>";
   }
 
-  function notice(msg) {
-    const n = q("perfNotice");
-    if (!n) return;
-    n.classList.toggle("d-none", !msg);
-    if (msg) n.textContent = msg;
-  }
-
-  async function loadUploads() {
-    if (!P.sb) return;
-    const { data, error } = await P.sb.from("uploads")
-      .select("*").order("uploaded_at", { ascending: false }).limit(25);
-    if (error) return;
-    table(q("ptblUploads"),
-      [t("pUpTime"), t("pUpFile"), t("pUpRows"), t("pUpNote")],
-      (data || []).map(u => [
-        new Date(u.uploaded_at).toLocaleString("en-GB"),
-        esc(u.filename || "—"), int(u.row_count), esc(u.note || "—")
-      ]), [2]);
-  }
-
-  /* ==========================================================================
-     4. HIỂN THỊ
-     ========================================================================== */
-  function enter() {
-    bindOnce();
-    switchPtab(P.ptab);
-    if (!P.ready) load(); else { renderAll(); loadUploads(); }
-  }
-
-  function relabel() {
-    applyStaticText();
-    q("dropMain").innerHTML = t("pDropMain");
-    bindPick();
-    renderAll();
-    loadUploads();
-  }
-
-  function renderAll() {
-    fillPeriods();
-    renderExec();
-    renderYearProgress();
-    renderRails();
-    renderPulseTable();
-    renderRevenue();
-    renderCustomer();
-    renderTargets();
-  }
-
-  function fillPeriods() {
-    const sel = q("perfPeriod");
-    if (!sel) return;
-    const cur = sel.value;
-    const withData = P.rows.filter(hasAct);
-    if (!withData.length) { sel.innerHTML = `<option>${t("pNoDataShort")}</option>`; return; }
-    sel.innerHTML = withData.map(r =>
-      `<option value="${r.period}">${mlabel(r.period)}</option>`).join("");
-    const actuals = withData.filter(r => !r.is_forecast);
-    const fallback = (actuals.length ? actuals : withData).slice(-1)[0].period;
-    sel.value = withData.some(r => r.period === cur) ? cur : fallback;
-  }
-
-  const current = () => {
-    const v = (q("perfPeriod") || {}).value;
-    return P.rows.find(r => r.period === v && hasAct(r)) || null;
-  };
-
-  function renderExec() {
-    const r = current();
-    const txt = q("perfExecText"), chips = q("perfExecChips");
-    if (!txt) return;
-    if (!r) { txt.innerHTML = t("pExecEmpty"); chips.innerHTML = ""; return; }
-
-    const withData = P.rows.filter(hasAct);
-    const i = withData.findIndex(x => x.period === r.period);
-    const prev = i > 0 ? withData[i - 1] : null;
-    const tot = revTotal(r);
-    const hasPlan = r.target_revenue > 0;
-
-    txt.innerHTML = hasPlan
-      ? t("pExecLine")(mlabel(r.period), bn(tot, 2), pc(100 * tot / r.target_revenue))
-      : t("pExecLineNoPlan")(mlabel(r.period), bn(tot, 2));
-
-    const out = [];
-    if (prev && revTotal(prev)) out.push(chip(t("pChipGrowth")((tot / revTotal(prev) - 1) * 100),
-      tot >= revTotal(prev) ? "stable" : "high"));
-    if (prev && prev.arpc) out.push(chip(t("pChipArpc")((r.arpc / prev.arpc - 1) * 100),
-      r.arpc >= prev.arpc ? "stable" : "watch"));
-    if (r.customer_active_rate != null) out.push(chip(t("pChipActive")(r.customer_active_rate), "watch"));
-    if (hasPlan && tot < r.target_revenue)
-      out.push(chip(t("pChipBelow")(100 - 100 * tot / r.target_revenue), "critical"));
-    chips.innerHTML = out.join("");
-  }
-  const chip = (label, band) => `<span class="exec-chip band-${band}">${label}</span>`;
-
-  /* --- 4.1. Thanh đối chiếu — phần đặc trưng của chế độ này -------------
-     Thực tế đổ đầy từ trái, kế hoạch là một vạch trên cùng trục. Đọc được
-     "đã tới đích chưa" bằng vị trí chứ không phải bằng cách nhẩm số.        */
-  function renderRails() {
-    const host = q("perfRails");
-    if (!host) return;
-    const r = current();
-    if (!r) {
-      host.innerHTML = `<div class="rail rail-empty">${t("pNoData")}</div>`;
-      return;
+  function shareChart(keys, colours, labels) {
+    var W = 380, H = 250, padB = 34, padT = 10;
+    var y0 = H - padB, plot = H - padB - padT;
+    var step = W / 6, bw = step * 0.5;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Revenue mix by share">';
+    for (var i = 0; i < 6; i++) {
+      var tot = keys.reduce(function (a, k) { return a + R[k][i]; }, 0);
+      var x = step * i + (step - bw) / 2, base = y0;
+      if (tot <= 0) {
+        s += '<text x="' + (x + bw / 2) + '" y="' + (y0 - 6) + '" text-anchor="middle" font-size="9.5" fill="var(--ink-3)">n/a</text>';
+      } else {
+        for (var k = keys.length - 1; k >= 0; k--) {
+          var hgt = R[keys[k]][i] / tot * plot;
+          if (hgt > 0.2) {
+            s += '<rect x="' + x.toFixed(1) + '" y="' + (base - hgt).toFixed(1) + '" width="' + bw.toFixed(1) +
+                 '" height="' + hgt.toFixed(1) + '" fill="' + colours[k] + '"><title>' + labels[k] + " " +
+                 R.yrs[i] + ": " + pc(R[keys[k]][i] / tot) + "</title></rect>";
+          }
+          base -= hgt;
+        }
+      }
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 + 14) + '" text-anchor="middle" font-size="9.5" fill="var(--ink-3)" font-family="var(--font-mono)">' + R.yrs[i].slice(2, 6) + "</text>";
+      s += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y0 + 27) + '" text-anchor="middle" font-size="11" font-weight="700" fill="var(--s-saas)" font-family="var(--font-mono)">' + pc(R.mix[i]) + "</text>";
     }
-    const withData = P.rows.filter(hasAct);
-    const i = withData.findIndex(x => x.period === r.period);
-    const prev = i > 0 ? withData[i - 1] : null;
-    const tot = revTotal(r);
+    return s + "</svg>";
+  }
 
-    const cards = [
-      { label: t("pRevenue"),   val: tot,               tgt: r.target_revenue,
-        fmt: v => bn(v, 2), unit: t("pUnitBn"), prev: prev ? revTotal(prev) : null },
-      { label: t("pCustomers"), val: r.total_customers, tgt: r.target_customers,
-        fmt: int, unit: "", prev: prev ? prev.total_customers : null },
-      { label: t("pUsers"),     val: r.total_users,     tgt: r.target_users,
-        fmt: int, unit: "", prev: prev ? prev.total_users : null },
-      { label: t("pArpcShort"), val: r.arpc,            tgt: null,
-        fmt: v => mn(v, 2), unit: t("pUnitMn"), prev: prev ? prev.arpc : null }
+  function lineChart(series, opt) {
+    opt = opt || {};
+    var W = 620, H = opt.h || 236, padL = 46, padB = 30, padT = 12;
+    var all = [];
+    series.forEach(function (s) { all = all.concat(s.v); });
+    var max = Math.max.apply(null, all) * 1.1 || 1, min = opt.min !== undefined ? opt.min : 0;
+    var y0 = H - padB, plot = H - padB - padT, step = (W - padL) / 5;
+    var Y = function (v) { return y0 - (v - min) / (max - min) * plot; };
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + (opt.aria || "trend") + '">';
+    for (var g = 0; g <= 3; g++) {
+      var yy = padT + plot * g / 3, val = max - (max - min) * g / 3;
+      s += '<line x1="' + padL + '" y1="' + yy + '" x2="' + W + '" y2="' + yy + '" stroke="var(--line-soft)"/>';
+      s += '<text x="' + (padL - 7) + '" y="' + (yy + 3.5) + '" text-anchor="end" font-size="9.5" fill="var(--ink-3)" font-family="var(--font-mono)">' +
+           (opt.fmtAxis ? opt.fmtAxis(val) : f(val, 0)) + "</text>";
+    }
+    s += '<line x1="' + padL + '" y1="' + y0 + '" x2="' + W + '" y2="' + y0 + '" stroke="var(--ink)"/>';
+    series.forEach(function (ser) {
+      var pts = ser.v.map(function (v, i) { return (padL + step * i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" ");
+      if (ser.fill) {
+        s += '<polygon points="' + padL + "," + y0 + " " + pts + " " + W + "," + y0 + '" fill="' + ser.c + '" opacity=".10"/>';
+      }
+      s += '<polyline points="' + pts + '" fill="none" stroke="' + ser.c + '" stroke-width="2.2" stroke-linejoin="round" stroke-dasharray="' + (ser.dash || "0") + '"/>';
+      ser.v.forEach(function (v, i) {
+        s += '<circle cx="' + (padL + step * i).toFixed(1) + '" cy="' + Y(v).toFixed(1) + '" r="3.1" fill="var(--surface)" stroke="' + ser.c + '" stroke-width="2"><title>' +
+             ser.n + " " + R.yrs[i] + ": " + (opt.fmtPt ? opt.fmtPt(v) : f(v, 0)) + "</title></circle>";
+      });
+    });
+    for (var i = 0; i < 6; i++) {
+      s += '<text x="' + (padL + step * i).toFixed(1) + '" y="' + (y0 + 15) + '" text-anchor="middle" font-size="9.5" fill="var(--ink-3)" font-family="var(--font-mono)">' + R.yrs[i].slice(2, 6) + "</text>";
+    }
+    return s + "</svg>";
+  }
+
+  /* ---------- banner: conditional prose built from the data ---------- */
+  function renderBanner() {
+    var r30 = R.rev[5], e30 = R.ebitda[5], lev = R.revIdx[5] / R.fixIdx[5];
+    var first = R.ebitda.findIndex(function (v, i) { return i > 0 && v > 0; });
+    var cl = [];
+
+    cl.push("Revenue reaches " + m$(r30) + " by FY2030 against " + m$(R.rev[1]) + " in FY2026, a factor of " + x_(R.revIdx[5]) + ", while the fixed cost base grows " + x_(R.fixIdx[5]) + " and headcount " + x_(R.hcIdx[5]) + ".");
+
+    if (lev >= 2.5) cl.push("That is " + x_(lev) + " of operating leverage, and it carries the EBITDA margin from " + pc(R.em[1]) + " to " + pc(R.em[5]) + ".");
+    else if (lev >= 1.4) cl.push("Operating leverage of " + x_(lev) + " lifts the EBITDA margin to " + pc(R.em[5]) + ", though less sharply than the base plan.");
+    else cl.push("At " + x_(lev) + ", cost is growing almost as fast as revenue and the margin case largely disappears.");
+
+    if (first > 0) cl.push("EBITDA turns positive in " + R.yrs[first].slice(0, 6) + ".");
+    else cl.push("EBITDA does not turn positive within the forecast period on these settings.");
+
+    var mixMove = R.mix[5] - R.mix[1];
+    if (mixMove > 0.35) cl.push("The driver is mix: revenue outside the low-margin resale layer moves from " + pc(R.mix[1]) + " to " + pc(R.mix[5]) + ", with no supplier contract assumed to improve.");
+    else if (mixMove > 0.1) cl.push("Mix improves from " + pc(R.mix[1]) + " to " + pc(R.mix[5]) + " of revenue outside the resale layer.");
+    else cl.push("Mix barely moves on these settings, so the business stays a resale operation and the software multiple is hard to defend.");
+
+    if (R.avoided[5] > 200) cl.push("Automation is doing the work: the same plan needs " + f(R.fNoAi[5], 0) + " people without it, against " + f(R.fTot[5], 0) + " with it.");
+    else if (R.avoided[5] > 40) cl.push("Automation saves " + f(R.avoided[5], 0) + " people by FY2030 — real, but no longer the centre of the case.");
+    else cl.push("At this automation level the headcount saving is negligible and the plan is carried by hiring.");
+
+    var chips = [];
+    chips.push(['<span class="pill st ' + (Math.abs(R.tie2026) < 20000 ? "stable" : "critical") + '">FY2026 tie-out ' + d$(R.tie2026) + "</span>"]);
+    if (R.close[1] !== BASE.pack2026Cust) chips.push(['<span class="pill st critical">FY2026 accounts off anchor by ' + f(R.close[1] - BASE.pack2026Cust, 0) + "</span>"]);
+    else chips.push(['<span class="pill st stable">FY2026 accounts on anchor</span>']);
+    chips.push(['<span class="pill st ' + (lev >= 2 ? "stable" : lev >= 1.4 ? "watch" : "critical") + '">Operating leverage ' + x_(lev) + "</span>"]);
+    chips.push(['<span class="pill st ' + (R.em[5] > 0.35 ? "stable" : R.em[5] > 0.15 ? "watch" : "high") + '">FY2030 margin ' + pc(R.em[5]) + "</span>"]);
+    chips.push(['<span class="pill st ' + (R.fTot[5] > 600 ? "high" : "stable") + '">FY2030 headcount ' + f(R.fTot[5], 0) + "</span>"]);
+    chips.push(['<span class="pill">' + m$(R.L4[5]) + " of FY2030 revenue is uncontracted embedded finance</span>"]);
+
+    el("fmBanner").innerHTML = "<p>" + cl.join(" ") + "</p><div class=\"bchips\">" + chips.join("") + "</div>";
+  }
+
+  /* ---------- KPI strip ---------- */
+  function renderKpis() {
+    var k = [
+      ["FY2030 revenue", m$(R.rev[5]), "from " + m$(R.rev[1]) + " in FY2026", R.revIdx[5] / 30, "var(--ink)"],
+      ["FY2030 EBITDA", m$(R.ebitda[5]), pc(R.em[5]) + " margin, from " + pc(R.em[1]), Math.max(0, R.em[5]) / 0.6,
+       R.ebitda[5] > 0 ? "var(--stable)" : "var(--critical)"],
+      ["Accounts", f(R.close[5], 0), "from " + f(R.close[1], 0) + " at Dec-2026", R.close[5] / 40000, "var(--ink)"],
+      ["Headcount", f(R.fTot[5], 0), f(R.fNoAi[5], 0) + " needed without automation", R.fTot[5] / R.fNoAi[5], "var(--ink)"],
+      ["Operating leverage", x_(R.revIdx[5] / R.fixIdx[5]), "revenue " + x_(R.revIdx[5]) + " vs fixed cost " + x_(R.fixIdx[5]),
+       (R.revIdx[5] / R.fixIdx[5]) / 5, "var(--accent-deep)"],
+      ["Enterprise value FY2030", m$(R.ev[5], 0), U.scenario === "base" ? "base multiples by layer" :
+        (U.scenario === "cons" ? "conservative multiples" : "upside multiples"), R.ev[5] / 2.5e9, "var(--ink)"]
     ];
-
-    host.innerHTML = cards.map(c => {
-      const has = c.tgt != null && c.tgt > 0;
-      const p100 = has ? (c.val / c.tgt) * 100 : null;
-      const span = has ? Math.max(c.val, c.tgt) * 1.08 : (c.val || 1);
-      const fill = Math.max(0, Math.min(100, (c.val / span) * 100));
-      const notch = has ? Math.min(100, (c.tgt / span) * 100) : null;
-      const band = !has ? "" : p100 >= 100 ? "stable" : p100 >= 85 ? "high" : "critical";
-      const d = c.prev ? (c.val / c.prev - 1) * 100 : null;
-
-      return `<div class="rail">
-        <div class="rail-label">${c.label}</div>
-        <div class="rail-value mono">${c.fmt(c.val)}${c.unit ? `<span class="rail-unit">${c.unit}</span>` : ""}</div>
-        <div class="rail-plan">${has ? t("pPlan") + " " + c.fmt(c.tgt) + (c.unit ? " " + c.unit : "") : t("pNoPlan")}</div>
-        <div class="rail-track">
-          <div class="rail-fill band-${band || "stable"}" style="width:${fill}%"></div>
-          ${notch != null ? `<div class="rail-notch" style="left:${notch}%"><span>${t("pPlan")}</span></div>` : ""}
-        </div>
-        <div class="rail-foot">
-          <b class="mono band-text-${band || "none"}">${has ? pc(p100) : "—"}</b>
-          <span class="rail-delta mono">${d == null ? "" :
-            (d >= 0 ? "▲ " : "▼ ") + Math.abs(d).toFixed(1) + "% " + t("pVsPrev")}</span>
-        </div>
-      </div>`;
+    el("fmKpis").innerHTML = k.map(function (x) {
+      return '<div class="kpi"><div class="kpi-label">' + x[0] + "</div>" +
+        '<div class="kpi-num" style="color:' + x[4] + '">' + x[1] + "</div>" +
+        '<div class="kpi-sub">' + x[2] + "</div>" +
+        '<div class="kpi-meter"><i style="width:' + Math.max(2, Math.min(100, x[3] * 100)).toFixed(0) + '%"></i></div></div>';
     }).join("");
   }
 
-  /* Tiến độ cả năm: lũy kế thực tế so với tổng kế hoạch 12 tháng.
-     Đây là câu trả lời trực tiếp cho "đang ở đâu so với mục tiêu tháng 12". */
-  function renderYearProgress() {
-    const host = q("perfYear");
-    if (!host) return;
-    const ytd = P.rows.filter(hasAct).reduce((a, r) => a + revTotal(r), 0);
-    const fy  = P.rows.reduce((a, r) => a + (Number(r.target_revenue) || 0), 0);
-    if (!fy) { host.innerHTML = ""; return; }
-
-    const pctv = 100 * ytd / fy;
-    const done = P.rows.filter(hasAct).length;
-    const planned = P.rows.filter(r => r.target_revenue > 0).length;
-    // tiến độ thời gian: đã đi bao nhiêu phần của năm
-    const timePct = planned ? 100 * done / planned : 0;
-
-    host.innerHTML = `
-      <div class="yearbar">
-        <div class="yearbar-head">
-          <div>
-            <span class="eyebrow">${t("pProgress")}</span>
-            <p class="yearbar-line">${t("pProgressLine")(
-              bn(ytd, 1) + " " + t("pUnitBn"), bn(fy, 1), pc(pctv))}</p>
-          </div>
-          <div class="yearbar-nums">
-            <div><span>${t("pYtd")}</span><b class="mono">${bn(ytd, 1)}</b></div>
-            <div><span>${t("pRemaining")}</span><b class="mono">${bn(fy - ytd, 1)}</b></div>
-            <div><span>${t("pFy")}</span><b class="mono">${bn(fy, 1)}</b></div>
-          </div>
-        </div>
-        <div class="yearbar-track">
-          <div class="yearbar-fill" style="width:${Math.min(100, pctv)}%"></div>
-          <div class="yearbar-time" style="left:${Math.min(100, timePct)}%"></div>
-        </div>
-        <div class="yearbar-scale">
-          ${P.rows.map(r => `<span class="${hasAct(r) ? "on" : ""}">${mlabel(r.period).slice(0,3)}</span>`).join("")}
-        </div>
-      </div>`;
-  }
-
-  function renderPulseTable() {
-    const dash = "—";
-    table(q("ptblPulse"),
-      [t("pPeriodCol"), `${t("pRevenue")} (${t("pUnitBn")})`, `${t("pPlan")} (${t("pUnitBn")})`,
-       t("pAchieved"), t("pCustomers"), `${t("pCustomers")} ${t("pPlan")}`,
-       t("pUsers"), `${t("pUsers")} ${t("pPlan")}`, `${t("pArpcShort")} (${t("pUnitMn")})`],
-      P.rows.map(r => {
-        const A = hasAct(r);
-        return [
-          mlabel(r.period),
-          A ? bn(revTotal(r), 3) : dash,
-          bn(r.target_revenue, 3),
-          A ? pc(r.revenue_pct) : dash,
-          A ? int(r.total_customers) : dash,
-          int(r.target_customers),
-          A ? int(r.total_users) : dash,
-          int(r.target_users),
-          A ? mn(r.arpc, 2) : dash
-        ];
-      }),
-      [1, 2, 3, 4, 5, 6, 7, 8],
-      P.rows.map(r => r.is_forecast || !hasAct(r)));
-    chartRevenue(); chartArpc();
-  }
-
-  function renderRevenue() {
-    const head = [t("pPeriodCol"), ...STREAMS.map(sName), t("pTotal"), t("pShortB") + " %"];
-    table(q("ptblRevenue"), head,
-      P.rows.filter(hasAct).map(r => [
-        mlabel(r.period), ...STREAMS.map(s => vnd(r[s.key])),
-        vnd(revTotal(r)), pc(r.stream_b_share)
-      ]),
-      head.map((_, i) => i).slice(1), P.rows.filter(hasAct).map(r => r.is_forecast));
-    chartStack(); chartShare();
-  }
-
-  function renderCustomer() {
-    table(q("ptblCustomer"),
-      [t("pPeriodCol"), t("pCustomers"), t("pActive"), t("pActiveShort"),
-       t("pUsers"), t("pActive"), t("pActiveShort")],
-      P.rows.filter(hasAct).map(r => [
-        mlabel(r.period), int(r.total_customers), int(r.active_customers), pc(r.customer_active_rate),
-        int(r.total_users), int(r.active_users), pc(r.user_active_rate)
-      ]), [1, 2, 3, 4, 5, 6], P.rows.filter(hasAct).map(r => r.is_forecast));
-    chartUsers(); chartActive();
-  }
-
-  /* bảng dùng chung; cột trong numCols dùng phông số */
-  function table(tbl, head, body, numCols, forecastFlags) {
-    if (!tbl) return;
-    numCols = numCols || []; forecastFlags = forecastFlags || [];
-    if (!body.length) {
-      tbl.innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead>
-        <tbody><tr><td class="ptable-empty" colspan="${head.length}">${t("pNoDataShort")}</td></tr></tbody>`;
-      return;
-    }
-    tbl.innerHTML =
-      `<thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
-      body.map((row, ri) =>
-        `<tr class="${forecastFlags[ri] ? "is-forecast" : ""}">` +
-        row.map((c, ci) => `<td class="${numCols.indexOf(ci) >= 0 ? "mono" : ""}">${c}</td>`).join("") +
-        `</tr>`).join("") + `</tbody>`;
-  }
-
-  /* ==========================================================================
-     5. BIỂU ĐỒ
-     ========================================================================== */
-  const AXIS = "#8A968F";
-  const BASE = {
-    responsive: true, maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    plugins: {
-      legend: { labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: "rectRounded",
-        font: { family: "'Be Vietnam Pro'", size: 11 }, color: "#46564C" } },
-      tooltip: { backgroundColor: "#12281A", padding: 10, cornerRadius: 8, displayColors: true,
-        titleFont: { family: "'Be Vietnam Pro'", size: 12, weight: "600" },
-        bodyFont: { family: "'JetBrains Mono'", size: 11 } }
-    },
-    scales: {
-      x: { grid: { display: false }, border: { color: "#E3E8EC" },
-           ticks: { font: { family: "'JetBrains Mono'", size: 10 }, color: AXIS } },
-      y: { grid: { color: "#EDF1F4" }, border: { display: false },
-           ticks: { font: { family: "'JetBrains Mono'", size: 10 }, color: AXIS } }
-    }
-  };
-  function mk(id, cfg) {
-    const c = q(id); if (!c) return;
-    if (P.charts[id]) { P.charts[id].destroy(); delete P.charts[id]; }
-    if (!P.rows.length) return;
-    P.charts[id] = new Chart(c, cfg);
-  }
-  const labels = () => P.rows.map(r => mlabel(r.period));
-
-  /* Đường kế hoạch chạy đủ 12 tháng; cột thực tế dừng ở tháng cuối
-     có số. Khoảng trống phía sau là chủ ý — cho thấy phần còn phải đi. */
-  function chartRevenue() {
-    mk("pcRevenue", { type: "bar", data: { labels: labels(), datasets: [
-      { label: t("pActual"),
-        data: P.rows.map(r => hasAct(r) ? +bn(revTotal(r), 3) : null),
-        backgroundColor: "#0D9488", borderRadius: 5, order: 3 },
-      { label: t("pPlan"), type: "line",
-        data: P.rows.map(r => r.target_revenue ? +bn(r.target_revenue, 3) : null),
-        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
-        tension: .25, spanGaps: true, order: 1 },
-      { label: t("pGap"), type: "bar",
-        data: P.rows.map(r => hasAct(r) ? null :
-          (r.target_revenue ? +bn(r.target_revenue, 3) : null)),
-        backgroundColor: "rgba(126,34,206,.13)", borderColor: "rgba(126,34,206,.45)",
-        borderWidth: 1, borderRadius: 5, order: 2 }
-    ] }, options: BASE });
-  }
-  function chartArpc() {
-    mk("pcArpc", { type: "line", data: { labels: labels(), datasets: [
-      { label: t("pPlan"), data: P.rows.map(r => r.target_arpc ? +mn(r.target_arpc, 3) : null),
-        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
-        tension: .25, spanGaps: true },
-      { label: t("pWithLicence"), data: P.rows.map(r => r.arpc ? +mn(r.arpc, 3) : null),
-        borderColor: "#A855F7", backgroundColor: "rgba(168,85,247,.10)", fill: true,
-        tension: .3, pointRadius: 2, borderWidth: 2 },
-      { label: t("pExLicence"), data: P.rows.map(r => r.arpc_ex_licence ? +mn(r.arpc_ex_licence, 3) : null),
-        borderColor: "#0D9488", borderDash: [5, 4], tension: .3, pointRadius: 2, borderWidth: 2 }
-    ] }, options: BASE });
-  }
-  function chartStack() {
-    mk("pcStack", { type: "bar", data: { labels: labels(),
-      datasets: STREAMS.map(s => ({ label: sName(s), data: P.rows.map(r => +bn(r[s.key], 3)),
-        backgroundColor: s.color, borderRadius: 2 })) },
-      options: Object.assign({}, BASE, { scales: {
-        x: Object.assign({}, BASE.scales.x, { stacked: true }),
-        y: Object.assign({}, BASE.scales.y, { stacked: true }) } }) });
-  }
-  function chartShare() {
-    mk("pcShare", { type: "line", data: { labels: labels(), datasets: [
-      { label: t("pShortB"), data: P.rows.map(r => r.stream_b_share),
-        borderColor: "#A855F7", backgroundColor: "rgba(168,85,247,.12)", fill: true,
-        tension: .3, pointRadius: 2, borderWidth: 2 }
-    ] }, options: BASE });
-  }
-  function chartUsers() {
-    mk("pcUsers", { type: "bar", data: { labels: labels(), datasets: [
-      { label: t("pTotal"),  data: P.rows.map(r => r.total_users),  backgroundColor: "#E3E8EC", borderRadius: 5 },
-      { label: t("pActive"), data: P.rows.map(r => r.active_users), backgroundColor: "#0D9488", borderRadius: 5 },
-      { label: t("pPlan"), type: "line", data: P.rows.map(r => r.target_users || null),
-        borderColor: "#7E22CE", borderDash: [5, 4], borderWidth: 2, pointRadius: 2,
-        tension: .25, spanGaps: true }
-    ] }, options: BASE });
-  }
-  function chartActive() {
-    mk("pcActive", { type: "line", data: { labels: labels(), datasets: [
-      { label: t("pCustomers"), data: P.rows.map(r => r.customer_active_rate),
-        borderColor: "#0D9488", tension: .3, pointRadius: 2, borderWidth: 2 },
-      { label: t("pUsers"), data: P.rows.map(r => r.user_active_rate),
-        borderColor: "#A855F7", borderDash: [5, 4], tension: .3, pointRadius: 2, borderWidth: 2 }
-    ] }, options: BASE });
-  }
-
-  /* ==========================================================================
-     6. KẾ HOẠCH — nhập tay
-     ========================================================================== */
-  function renderTargets() {
-    const tbl = q("ptblTargets"); if (!tbl) return;
-    const all = Array.from(new Set(
-      P.rows.map(r => r.period).concat(P.targets.map(x => x.period)))).sort();
-    if (!all.length) {
-      tbl.innerHTML = `<tbody><tr><td class="ptable-empty">${t("pTargetsFirst")}</td></tr></tbody>`;
-      return;
-    }
-    const find = p => P.targets.find(x => x.period === p) || {};
-    tbl.innerHTML =
-      `<thead><tr><th>${t("pPeriodCol")}</th><th>${t("pRevenue")} (${t("pUnitVnd")})</th>
-        <th>${t("pCustomers")}</th><th>${t("pUsers")}</th></tr></thead><tbody>` +
-      all.map(p => {
-        const x = find(p);
-        return `<tr data-period="${p}">
-          <td>${mlabel(p)}</td>
-          <td><input type="number" step="1" class="form-control" data-f="target_revenue"   value="${x.target_revenue   != null ? x.target_revenue   : ""}" /></td>
-          <td><input type="number" step="1" class="form-control" data-f="target_customers" value="${x.target_customers != null ? x.target_customers : ""}" /></td>
-          <td><input type="number" step="1" class="form-control" data-f="target_users"     value="${x.target_users     != null ? x.target_users     : ""}" /></td>
-        </tr>`;
-      }).join("") + `</tbody>`;
-  }
-
-  async function saveTargets() {
-    if (!P.sb) return say(t("pNeedSupabase"), "warn");
-    const payload = Array.from(document.querySelectorAll("#ptblTargets tbody tr")).map(tr => {
-      const o = { period: tr.dataset.period };
-      tr.querySelectorAll("input").forEach(i => { o[i.dataset.f] = i.value === "" ? 0 : Number(i.value); });
-      return o;
-    }).filter(o => o.target_revenue || o.target_customers || o.target_users);
-
-    if (!payload.length) return say(t("pNoTargets"), "warn");
-    const { error } = await P.sb.from("monthly_target").upsert(payload, { onConflict: "period" });
-    if (error) return say(t("pCommitFail")(error.message), "err");
-    say(t("pSavedTargets")(payload.length), "ok");
-    load();
-  }
-
-  /* ==========================================================================
-     7. TẢI FILE — đọc, kiểm tra, rồi mới ghi
-     ========================================================================== */
-  const HEADERS = {
-    period: ["period", "ky", "kỳ", "thang", "tháng", "month"],
-    rev_a: ["rev_a", "revenue_a", "stream_a"],
-    rev_b: ["rev_b", "revenue_b", "stream_b"],
-    total_customers: ["total_customers"], active_customers: ["active_customers"],
-    total_users: ["total_users"], active_users: ["active_users"],
-    is_forecast: ["is_forecast", "forecast"],
-    target_revenue: ["target_revenue"], target_customers: ["target_customers"],
-    target_users: ["target_users"], target_active_users: ["target_active_users"]
-  };
-  const norm = s => String(s == null ? "" : s).trim().toLowerCase()
-    .replace(/[\s\-().]/g, "_").replace(/_+/g, "_");
-  function mapHead(h) {
-    const n = norm(h);
-    for (const f in HEADERS) if (HEADERS[f].some(a => norm(a) === n)) return f;
-    return null;
-  }
-  /* file mẫu có một dòng nhãn tiếng Việt phía trên dòng tên cột máy đọc,
-     nên phải dò tìm chứ không mặc định dòng đầu tiên */
-  function headerRow(raw) {
-    for (let i = 0; i < Math.min(raw.length, 12); i++) {
-      const hits = (raw[i] || []).map(mapHead).filter(Boolean);
-      if (hits.indexOf("period") >= 0 && hits.length >= 2) return i;
-    }
-    return -1;
-  }
-  function parsePeriod(v) {
-    if (v == null || v === "") return null;
-    if (v instanceof Date) return iso(v);
-    if (typeof v === "number") {
-      const d = XLSX.SSF.parse_date_code(v);
-      return d ? `${d.y}-${String(d.m).padStart(2, "0")}-01` : null;
-    }
-    const s = String(v).trim();
-    let m = s.match(/^(\d{4})-(\d{1,2})/);
-    if (m) return `${m[1]}-${String(+m[2]).padStart(2, "0")}-01`;
-    m = s.match(/^(\d{1,2})[\/\-](\d{4})$/);
-    if (m) return `${m[2]}-${String(+m[1]).padStart(2, "0")}-01`;
-    const MO = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
-    m = s.match(/^([a-z]{3})[a-z]*[\-\s](\d{2,4})$/i);
-    if (m && MO[m[1].toLowerCase()]) {
-      let y = +m[2]; if (y < 100) y += 2000;
-      return `${y}-${String(MO[m[1].toLowerCase()]).padStart(2, "0")}-01`;
-    }
-    const d = new Date(s);
-    return isNaN(d) ? null : iso(d);
-  }
-  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-  function num(v) {
-    if (v == null || v === "") return 0;
-    if (typeof v === "number") return Math.round(v);
-    const n = Number(String(v).replace(/[,\s]/g, ""));
-    return isNaN(n) ? 0 : Math.round(n);
-  }
-
-  function readFile(f) {
-    // Thiếu thư viện đọc Excel là lỗi cấu hình, không phải lỗi file người dùng.
-    if (typeof XLSX === "undefined") {
-      checks([{ t: "err", m: t("pNoXlsxLib") }]);
-      q("btnPerfCommit").disabled = true;
-      return;
-    }
-    const fr = new FileReader();
-    fr.onload = e => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
-        if (!wb || !wb.SheetNames || !wb.SheetNames.length)
-          return checks([{ t: "err", m: t("pFileEmpty") }]);
-        let actualRaw = null, targetRaw = null;
-        wb.SheetNames.forEach(name => {
-          const raw = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false });
-          const h = headerRow(raw);
-          if (h < 0) return;
-          const fields = raw[h].map(mapHead).filter(Boolean);
-          const isTgt = fields.some(x => x.indexOf("target_") === 0);
-          if (isTgt && !targetRaw) targetRaw = raw;
-          else if (!isTgt && !actualRaw) actualRaw = raw;
-        });
-        if (!actualRaw && !targetRaw)
-          return checks([
-            { t: "err",  m: t("pNoHeader") },
-            { t: "warn", m: t("pSheetsSeen")(wb.SheetNames.join(", ") || "—") }
-          ]);
-
-        P.stagedTargets = targetRaw ? parseTargets(targetRaw) : null;
-        if (actualRaw) stage(actualRaw, f.name);
-        else { P.staged = { recs: [], filename: f.name }; targetOnly(); }
-      } catch (err) {
-        console.error("perf upload:", err);
-        checks([{ t: "err", m: t("pReadFail")(err && err.message ? err.message : String(err)) }]);
-        q("btnPerfCommit").disabled = true;
-      }
-    };
-    fr.onerror = () => {
-      checks([{ t: "err", m: t("pReadFail")(t("pFileUnreadable")) }]);
-      q("btnPerfCommit").disabled = true;
-    };
-    fr.readAsArrayBuffer(f);
-  }
-
-  function parseTargets(raw) {
-    const h = headerRow(raw); if (h < 0) return null;
-    raw = raw.slice(h);
-    const map = raw[0].map(mapHead);
-    const out = [];
-    for (let i = 1; i < raw.length; i++) {
-      const line = raw[i]; if (!line || !line.length) continue;
-      const rec = {};
-      map.forEach((f, ci) => {
-        if (!f) return;
-        if (f === "period") rec.period = parsePeriod(line[ci]);
-        else if (f.indexOf("target_") === 0) rec[f] = num(line[ci]);
+  /* ---------- drivers ---------- */
+  var DRV = [
+    ["sellers2030", "Sellers by FY2030", 20, 110, 1, function (v) { return f(v, 0) + " people"; },
+     "Quota-carrying commercial heads. 5 in place at Aug-2026."],
+    ["ai2030", "Automated share of workflows by FY2030", 0.60, 0.99, 0.01, function (v) { return pc(v); },
+     "The most consequential input in the model. FY2026 sits at 58%."],
+    ["licence", "Platform licence pricing", 0.5, 2.0, 0.05, function (v) { return x_(v, 2); },
+     "Scales the per-account software fee. This is what earns the software multiple."],
+    ["channel2030", "Partner-channel accounts per year by FY2030", 0, 8000, 100, function (v) { return f(v, 0); },
+     "Bank and fleet introductions. Near-zero acquisition cost, no selling capacity used."],
+    ["takeRate", "Blended take rate", 0.6, 1.5, 0.05, function (v) { return x_(v, 2); },
+     "Scales travel 3%, mobility 10% and F&B 5% together, plus the 2% platform fee."],
+    ["churn", "Annual account churn", 0, 0.25, 0.01, function (v) { return pc(v); },
+     "Not yet measured against live cohorts. 8% is the working assumption."],
+    ["round", "Round size", 1, 8, 0.5, function (v) { return "$" + f(v, 1) + "m"; },
+     "Above the $1m core plan, each extra $1m funds 250 more US accounts by FY2030 and lifts the automation ceiling one point."]
+  ];
+  function renderDrivers() {
+    el("fmDrv").innerHTML = DRV.map(function (d) {
+      return '<div class="drv"><label for="d-' + d[0] + '"><span>' + d[1] + "</span><b>" + d[5](U[d[0]]) + "</b></label>" +
+        '<input id="d-' + d[0] + '" type="range" min="' + d[2] + '" max="' + d[3] + '" step="' + d[4] + '" value="' + U[d[0]] + '">' +
+        '<div class="hint">' + d[6] + "</div></div>";
+    }).join("");
+    DRV.forEach(function (d) {
+      el("d-" + d[0]).addEventListener("input", function (e) {
+        U[d[0]] = parseFloat(e.target.value);
+        render();
       });
-      if (!rec.period) continue;
-      if (!(rec.target_revenue || rec.target_customers || rec.target_users)) continue;
-      out.push({ period: rec.period,
-        target_revenue: rec.target_revenue || 0,
-        target_customers: rec.target_customers || 0,
-        target_users: rec.target_users || 0 });
-    }
-    return out.length ? out : null;
+    });
+    el("fmTie").innerHTML = "FY2026 revenue tie-out " + d$(R.tie2026) + " on " + m$(BASE.pack2026Rev / 25500) +
+      " &nbsp;·&nbsp; " + pc(R.tie2026 / (BASE.pack2026Rev / 25500), 2);
   }
 
-  function stage(raw, filename) {
-    const list = [];
-    if (!raw.length) return say(t("pFileEmpty"), "err");
-    const h = headerRow(raw);
-    if (h < 0) return checks([{ t: "err", m: t("pNoHeader") }]);
-    raw = raw.slice(h);
-    const map = raw[0].map(mapHead);
+  /* ---------- views ---------- */
+  function viewOverview() {
+    var yr = R.yrs, keys = ["L1", "L4", "US", "L2", "L3"];
+    var cols = ["var(--s-saas)", "var(--s-emb)", "var(--s-us)", "var(--s-mkt)", "var(--s-svc)"];
+    var names = SERIES.map(function (s) { return s[0]; });
 
-    const unknown = raw[0].filter((c, i) => c && !map[i]);
-    if (unknown.length) list.push({ t: "warn", m: t("pColsIgnored")(unknown.length, unknown.join(", ")) });
+    var chart = card("Signature", "Revenue by layer",
+      "Green tones are contracted software, embedded finance and the US module. Sand is resale revenue booked as principal at a single-digit margin.",
+      stackChart(keys, cols, names, { h: 250, aria: "Revenue by layer", fmtAxis: function (v) { return "$" + f(v / 1e6, 0) + "m"; } }) +
+      legend(SERIES.map(function (s) { return [s[0], s[1]]; })));
 
-    const pcol = map.indexOf("period");
-    const FOOTER = /^(t\u1ed5ng|t\u1ed5ng c\u1ed9ng|total|sum|grand total)$/i;
-    const blank = v => v == null || String(v).trim() === "";
+    var share = card("Same data", "As a share of revenue",
+      "The figure beneath each bar is revenue outside the resale layer.",
+      shareChart(keys, cols, names));
 
-    const out = [], bad = [], skipped = [];
-    for (let i = 1; i < raw.length; i++) {
-      const line = raw[i]; if (!line || !line.length) continue;
+    var pl = "";
+    pl += row("Revenue", "", R.rev, m$, "tot");
+    pl += row("Cost of sales", "Resale layer only", R.cogs, m$);
+    pl += row("Gross profit", "", R.gp, m$, "tot");
+    pl += row("Gross margin", "", R.gm, function (v) { return pc(v); });
+    pl += row("Operating expense", "", R.opex.map(function (v) { return -v; }), m$);
+    pl += row("EBITDA", "", R.ebitda, m$, "tot");
+    pl += row("EBITDA margin", "", R.em, function (v) { return pc(v); });
+    pl += row("Depreciation &amp; amortisation", "Three-year straight line on capitalised build", R.da.map(function (v) { return -v; }), m$);
+    pl += row("Tax", "20% from FY2027, no loss carry-forward recognised", R.tax, m$);
+    pl += row("Net income", "", R.ni, m$, "tot");
 
-      // Dòng tổng cuối bảng: bỏ qua, không tính là lỗi.
-      if (pcol >= 0 && FOOTER.test(String(line[pcol] == null ? "" : line[pcol]).trim())) continue;
+    var lv = "";
+    lv += row("Revenue", "", R.revIdx, function (v) { return x_(v); }, "tot");
+    lv += row("Fixed operating cost", "Payroll, go-to-market and G&amp;A", R.fixIdx, function (v) { return x_(v); });
+    lv += row("Headcount", "", R.hcIdx, function (v) { return x_(v); });
+    lv += row("Fixed cost as % of revenue", "", R.fixed.map(function (v, i) { return R.rev[i] ? v / R.rev[i] : 0; }), function (v) { return pc(v); });
 
-      // Tháng có ghi kỳ nhưng mọi ô số đều để trống = chưa có số liệu.
-      // Bỏ qua hẳn, KHÔNG ghi thành 0 — số 0 nghĩa là doanh thu bằng không.
-      const allBlank = map.every((f, ci) =>
-        !f || f === "period" || f === "is_forecast" || blank(line[ci]));
-      if (allBlank) {
-        const p = pcol >= 0 ? parsePeriod(line[pcol]) : null;
-        if (p) skipped.push(mlabel(p));
-        continue;
-      }
+    return '<div class="g75">' + chart + share + "</div>" +
+      card("Profit and loss", "Summary", "USD. FY2025 reproduces the audited statutory accounts.", tbl(yr, pl, "")) +
+      card("The core claim", "Operating leverage, indexed to FY2026",
+        "Revenue compounds " + x_(R.revIdx[5]) + " while the fixed cost base compounds " + x_(R.fixIdx[5]) +
+        ". The gap between those two rows is the entire margin story.", tbl(yr, lv, ""));
+  }
 
-      const rec = {};
-      map.forEach((f, ci) => {
-        if (!f) return;
-        if (f === "period") rec.period = parsePeriod(line[ci]);
-        else if (f === "is_forecast") rec.is_forecast = /^(1|true|x|yes|c\u00f3)$/i.test(String(line[ci] == null ? "" : line[ci]).trim());
-        else if (f.indexOf("target_") !== 0) rec[f] = num(line[ci]);
+  function viewCustomers() {
+    var yr = R.yrs;
+    var br = "";
+    br += row("Opening base", "", R.open, function (v) { return f(v, 0); });
+    br += row("Accounts lost", "Churn on the opening base", R.churn, function (v) { return f(v, 0); });
+    br += row("Won by the commercial team", "Sellers &times; accounts closed per seller", R.sales, function (v) { return f(v, 0); });
+    br += row("Introduced by bank and fleet partners", "No selling capacity consumed", R.channel, function (v) { return f(v, 0); });
+    br += row("Closing base", "", R.close, function (v) { return f(v, 0); }, "tot");
+
+    var ti = "";
+    ti += row("Full solution", "Travel, mobility and F&amp;B. 2% of accounts, roughly a third of revenue.", R.t1, function (v) { return f(v, 0); });
+    ti += row("Mobility and F&amp;B", "Two of three categories, no managed travel.", R.t2, function (v) { return f(v, 0); });
+    ti += row("Mobility only", "Entry tier. Base coverage and data density.", R.t3, function (v) { return f(v, 0); });
+    ti += row("Total accounts at year end", "", R.close, function (v) { return f(v, 0); }, "tot");
+    ti += row("Average accounts serving the year", "Mean of opening and closing. This is the base revenue is earned on.",
+              R.aT, function (v) { return f(v, 0); });
+
+    var ramp = "";
+    var months = ["Aug-26", "Sep-26", "Oct-26", "Nov-26", "Dec-26"];
+    var r1 = [10, 20, 30, 40, 50], r2 = [0, 75, 150, 225, 300], rt = [750, 1062, 1374, 1686, 2000];
+    ramp += row("Full solution", "", r1, function (v) { return f(v, 0); });
+    ramp += row("Mobility and F&amp;B", "", r2, function (v) { return f(v, 0); });
+    ramp += row("Mobility only", "", rt.map(function (v, i) { return v - r1[i] - r2[i]; }), function (v) { return f(v, 0); });
+    ramp += row("Managed accounts", "", rt, function (v) { return f(v, 0); }, "tot");
+
+    var chart = lineChart([
+      { n: "Total accounts", v: R.close, c: "var(--s-saas)", fill: true },
+      { n: "Average accounts in year", v: R.aT, c: "var(--accent)", dash: "5 4" }
+    ], { h: 236, aria: "Account base", fmtAxis: function (v) { return f(v / 1000, 0) + "k"; }, fmtPt: function (v) { return f(v, 0); } });
+
+    return '<div class="g75">' +
+      card("Growth engine", "Accounts, year end versus average in year",
+        "Revenue is earned on the dashed line, not the solid one. An account signed in December contributes one month, not twelve.",
+        chart + legend([["Total accounts at year end", "var(--s-saas)"], ["Average accounts serving the year", "var(--accent)"]])) +
+      card("FY2026 commercial ramp", "Managed accounts by month",
+        "The plan tracks 2,000 managed accounts by December 2026. The 2,500 total-account figure previously issued counts every registered corporate customer, a broader basis. Revenue runs on the FY2026 average of " + f(R.aT[1], 0) + ".",
+        tbl(months, ramp, "")) +
+      "</div>" +
+      card("Where accounts come from", "New-logo bridge",
+        "Revenue is an output of this table, not an input. Disagreeing with FY2030 revenue means disagreeing with one of these three lines.",
+        tbl(yr, br, "")) +
+      card("Segmentation", "Accounts by tier",
+        "Full-solution and mobility-and-F&amp;B counts are set targets; the entry tier is the residual, so it absorbs any change to the sellers or channel drivers.",
+        tbl(yr, ti, ""));
+  }
+
+  function viewRevMargin() {
+    var yr = R.yrs;
+    var mg = {
+      L1: R.rev.map(function (_, i) { return 1 - BASE.cts1[i]; }),
+      L2: R.rev.map(function (_, i) { return 1 - BASE.cts2[i]; }),
+      L3: BASE.svcGM.slice(),
+      L4: R.rev.map(function () { return 1 - BASE.cts4; }),
+      US: R.rev.map(function (_, i) { return 1 - BASE.cts1[i]; })
+    };
+    var contrib = {}, totC = [0, 0, 0, 0, 0, 0];
+    ["L1", "L2", "L3", "L4", "US"].forEach(function (k) {
+      contrib[k] = R[k].map(function (v, i) { return v * mg[k][i]; });
+      contrib[k].forEach(function (v, i) { totC[i] += v; });
+    });
+    var overhead = R.opex.map(function (v, i) { return -(v - R.cts[i]); });
+
+    var rv = "";
+    rv += row("SaaS &amp; intelligence", "Platform licence plus the 2% administration fee", R.L1, m$);
+    rv += row("Marketplace", "Vendor take-rate", R.L2, m$);
+    rv += row("Service trading", "Bought and resold as principal, so it books gross", R.L3, m$);
+    rv += row("Embedded finance", "Card issuing, settlement float, agentic procurement", R.L4, m$);
+    rv += row("United States", "Phase 1, software only", R.US, m$);
+    rv += row("Total revenue", "", R.rev, m$, "tot");
+    rv += row("Outside the resale layer", "", R.mix, function (v) { return pc(v); });
+
+    var mm = "";
+    ["L1", "L2", "L3", "L4", "US"].forEach(function (k, j) {
+      var nm = ["SaaS &amp; intelligence", "Marketplace", "Service trading", "Embedded finance", "United States"][j];
+      mm += row(nm, "", mg[k], function (v) { return pc(v, k === "L3" ? 1 : 0); });
+    });
+    mm += row("Blended margin on revenue", "", totC.map(function (v, i) { return R.rev[i] ? v / R.rev[i] : 0; }),
+              function (v) { return pc(v); }, "tot");
+
+    var cc = "";
+    ["L1", "L2", "L3", "L4", "US"].forEach(function (k, j) {
+      var nm = ["SaaS &amp; intelligence", "Marketplace", "Service trading", "Embedded finance", "United States"][j];
+      cc += row(nm, "", contrib[k], m$);
+    });
+    cc += row("Total contribution", "", totC, m$, "tot");
+    cc += row("less costs not attributable to one stream", "Payroll, go-to-market, G&amp;A, acquisition, commission", overhead, m$);
+    cc += row("EBITDA", "", R.ebitda, m$, "tot");
+
+    var ar = "";
+    ar += row("SaaS per account", "", R.L1.map(function (v, i) { return R.aT[i] ? v / R.aT[i] : 0; }), d$);
+    ar += row("Marketplace per account", "", R.L2.map(function (v, i) { return R.aT[i] ? v / R.aT[i] : 0; }), d$);
+    ar += row("Service trading per account", "", R.L3.map(function (v, i) { return R.aT[i] ? v / R.aT[i] : 0; }), d$);
+    ar += row("Domestic revenue per account", "",
+      R.rev.map(function (v, i) { return R.aT[i] ? (R.L1[i] + R.L2[i] + R.L3[i]) / R.aT[i] : 0; }), d$, "tot");
+
+    return card("Revenue", "Five streams, five sets of economics",
+        "Service trading books gross because the inventory is bought and resold, so its revenue is large and its margin thin. Everything else is thin on revenue and fat on margin.",
+        tbl(yr, rv, "")) +
+      '<div class="g2">' +
+      card("Margin", "Revenue less the direct cost of serving it", "", tbl(yr, mm, "")) +
+      card("Bridge", "Contribution to EBITDA", "", tbl(yr, cc, "")) +
+      "</div>" +
+      card("Unit economics", "Average revenue per account",
+        "Total revenue per account dips as the base widens into the entry tier, then recovers. The line that matters is SaaS per account, which rises every year — that is the contracted revenue a software multiple is paid on.",
+        tbl(yr, ar, ""));
+  }
+
+  function viewPeopleAi() {
+    var yr = R.yrs;
+    var hc = "";
+    hc += row("Commercial", "Selling, customer success and account management", R.fComm, function (v) { return f(v, 0); });
+    hc += row("Operations and delivery", "Scales with transaction volume, not account count", R.fOps, function (v) { return f(v, 0); });
+    hc += row("Technology and product", "Front-loaded; the platform precedes the capacity gain", R.tech, function (v) { return f(v, 0); });
+    hc += row("Corporate", "Finance, people, legal", R.gaFte, function (v) { return f(v, 0); });
+    hc += row("United States", "Derived from the US account plan", R.fUs, function (v) { return f(v, 0); });
+    hc += row("Total headcount", "", R.fTot, function (v) { return f(v, 0); }, "tot");
+    hc += row("Net hires in the year", "",
+      R.fTot.map(function (v, i) { return i === 0 ? 0 : v - R.fTot[i - 1]; }), function (v) { return f(v, 0); });
+    hc += row("Total payroll", "", R.payroll, m$);
+
+    var au = "";
+    au += row("Automated share of workflows", "", R.ai, function (v) { return pc(v); });
+    au += row("Capacity multiplier versus FY2026", "", R.capMult, function (v) { return x_(v, 2); });
+    au += row("Accounts closed per seller per year", "Base productivity held flat, so the gain is visible", R.quota, function (v) { return f(v, 0); });
+    au += row("Headcount required without the capacity gain", "", R.fNoAi, function (v) { return f(v, 0); });
+    au += row("People not needed", "", R.avoided, function (v) { return f(v, 0); }, "tot");
+    au += row("Annual payroll avoided", "", R.avoidedPay, m$);
+
+    var ef = "";
+    ef += row("Revenue per person", "", R.revFte, d$);
+    ef += row("Operating cost per $1,000 of spend processed", "The easiest line to verify against actuals each quarter",
+      R.ops1k, function (v) { return v ? "$" + f(v, 2) : "\u2013"; }, "tot");
+    ef += row("Accounts per commercial person", "", R.close.map(function (v, i) { return R.fComm[i] ? v / R.fComm[i] : 0; }),
+      function (v) { return f(v, 0); });
+
+    var chart = lineChart([
+      { n: "Headcount required without automation", v: R.fNoAi, c: "var(--critical)", dash: "5 4" },
+      { n: "Headcount in the plan", v: R.fTot, c: "var(--s-saas)", fill: true }
+    ], { h: 236, aria: "Headcount with and without automation", fmtPt: function (v) { return f(v, 0); } });
+
+    return '<div class="g75">' +
+      card("Signature", "What automation actually buys",
+        "Not cost reduction. Capacity — the same person covers more accounts as workflows stop needing a human. The gap between the two lines is " +
+        f(R.avoided[5], 0) + " people by FY2030, worth " + m$(R.avoidedPay[5]) + " of payroll a year.",
+        chart + legend([["Headcount in the plan", "var(--s-saas)"], ["Same plan without the capacity gain", "var(--critical)"]])) +
+      card("Automation", "Drivers and effect", "", tbl(yr, au, "")) +
+      "</div>" +
+      card("Resource plan", "Headcount by function", "Full-time equivalents. Capacity ratios produce fractional requirements, shown rounded.",
+        tbl(yr, hc, "")) +
+      card("Efficiency", "Per-unit measures", "", tbl(yr, ef, ""));
+  }
+
+  function viewValuation() {
+    var yr = R.yrs;
+    var sc = { cons: 0, base: 1, up: 2 }[U.scenario];
+    var ev = "";
+    ev += row("Conservative", "", R.evAll.cons, function (v) { return m$(v, 0); });
+    ev += row("Base", "", R.evAll.base, function (v) { return m$(v, 0); }, "tot");
+    ev += row("Upside", "", R.evAll.up, function (v) { return m$(v, 0); });
+    ev += row("Implied EV / revenue, base", "", R.evAll.base.map(function (v, i) { return R.rev[i] ? v / R.rev[i] : 0; }),
+      function (v) { return x_(v); });
+    ev += row("Implied EV / EBITDA, base", "",
+      R.evAll.base.map(function (v, i) { return R.ebitda[i] > 0 ? v / R.ebitda[i] : NaN; }), function (v) { return x_(v); });
+
+    var names = ["SaaS &amp; intelligence, with the US module", "Marketplace", "Service trading", "Embedded finance"];
+    var mkeys = ["l1", "l2", "l3", "l4"];
+    var rev30 = [R.L1[5] + R.US[5], R.L2[5], R.L3[5], R.L4[5]];
+    var ct = "";
+    for (var i = 0; i < 4; i++) {
+      var mult = BASE.mult[mkeys[i]][sc], val = rev30[i] * mult;
+      ct += '<tr><td><span class="tlabel">' + names[i] + "</span></td>" +
+        '<td class="num">' + m$(rev30[i]) + "</td>" +
+        '<td class="num">' + pc(R.rev[5] ? rev30[i] / R.rev[5] : 0) + "</td>" +
+        '<td class="num">' + x_(mult) + "</td>" +
+        '<td class="num">' + m$(val, 0) + "</td>" +
+        '<td class="num">' + pc(R.ev[5] ? val / R.ev[5] : 0) + "</td></tr>";
+    }
+    ct += '<tr class="tot"><td>Total</td><td class="num">' + m$(R.rev[5]) + '</td><td class="num">100%</td><td class="num">' +
+      x_(R.rev[5] ? R.ev[5] / R.rev[5] : 0) + '</td><td class="num">' + m$(R.ev[5], 0) + '</td><td class="num">100%</td></tr>';
+
+    var mults = [8, 10, 12, 14, 18, 22], scal = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0];
+    var gr = "";
+    scal.forEach(function (s) {
+      gr += '<tr><td><span class="tlabel mono">' + x_(s, 1) + "</span></td>";
+      mults.forEach(function (mu) {
+        var gtot = R.gTravel[2] + R.gFnb[2] + R.gMob[2];
+        var adminFee = gtot * BASE.trSaaS * U.takeRate / 25500;
+        var lic = (R.a1[2] * BASE.lic1[2] + R.a2[2] * BASE.lic2[2] + R.a3[2] * BASE.lic3[2]) * U.licence;
+        var v = (adminFee + lic * s) * mu + R.L2[2] * BASE.mult.l2[1] + R.L3[2] * BASE.mult.l3[1] + R.L4[2] * BASE.mult.l4[1];
+        gr += '<td class="num">' + m$(v, 0) + "</td>";
       });
-      if (!rec.period) { bad.push(h + i + 1); continue; }
-      STREAMS.forEach(s => rec[s.key] = rec[s.key] || 0);
-      ["total_customers", "active_customers", "total_users", "active_users"]
-        .forEach(k => rec[k] = rec[k] || 0);
-      rec.is_forecast = !!rec.is_forecast;
-      out.push(rec);
-    }
-
-    if (bad.length) list.push({ t: "err", m: t("pBadRows")(bad.join(", ")) });
-    if (!out.length) {
-      if (P.stagedTargets) { P.staged = { recs: [], filename: filename }; return targetOnly(list); }
-      return checks(list.concat([{ t: "err", m: t("pNoValidRows") }]));
-    }
-
-    const seen = {}, dup = [];
-    out.forEach(r => { if (seen[r.period]) dup.push(mlabel(r.period)); seen[r.period] = 1; });
-    if (dup.length) list.push({ t: "err", m: t("pDupPeriods")(Array.from(new Set(dup)).join(", ")) });
-
-    const over = out.filter(r => P.rows.some(x => x.period === r.period)).map(r => mlabel(r.period));
-    list.push({ t: "ok", m: t("pRowsValid")(out.length, out.length - over.length, over.length) });
-    if (over.length) list.push({ t: "warn", m: t("pRowsOverwrite")(over.join(", ")) });
-    if (P.stagedTargets) list.push({ t: "ok", m: t("pTargetsFound")(P.stagedTargets.length) });
-    if (skipped.length) list.push({ t: "warn", m: t("pSkippedBlank")(skipped.join(", ")) });
-
-    out.sort((a, b) => a.period < b.period ? -1 : 1);
-    out.forEach(r => {
-      const prev = P.rows.filter(x => x.period < r.period && x.total_customers > 0).slice(-1)[0];
-      if (prev && r.total_customers && r.total_customers < prev.total_customers * 0.8)
-        list.push({ t: "warn", m: t("pDropWarn")(mlabel(r.period)) });
-      if (revTotal(r) === 0) list.push({ t: "warn", m: t("pZeroRev")(mlabel(r.period)) });
+      gr += "</tr>";
     });
 
-    const blocking = list.some(c => c.t === "err");
-    P.staged = blocking ? null : { recs: out, filename: filename };
-    checks(list);
-    q("btnPerfCommit").disabled = blocking;
-
-    table(q("ptblPreview"),
-      [t("pPeriodCol"), ...STREAMS.map(sName), t("pTotal"), t("pCustomers"), t("pUsers"), t("pType")],
-      out.map(r => [
-        mlabel(r.period), ...STREAMS.map(s => vnd(r[s.key])), vnd(revTotal(r)),
-        int(r.total_customers), int(r.total_users),
-        r.is_forecast ? t("pForecast") : t("pActualLabel")
-      ]),
-      STREAMS.map((s, i) => i + 1).concat([STREAMS.length + 1, STREAMS.length + 2, STREAMS.length + 3]));
+    return card("Valuation", "Enterprise value by scenario",
+        "Each layer takes its own comparable set. A single blended multiple would either overvalue the resale layer or undervalue the software layer.",
+        tbl(yr, ev, "")) +
+      card("FY2030 composition", "Where the value sits",
+        "Currently on " + (U.scenario === "base" ? "base" : U.scenario === "cons" ? "conservative" : "upside") + " multiples.",
+        '<table><thead><tr><th>Layer</th><th>FY2030 revenue</th><th>Share of revenue</th><th>Multiple</th><th>Enterprise value</th><th>Share of value</th></tr></thead><tbody>' + ct + "</tbody></table>") +
+      card("Sensitivity", "FY2027 enterprise value",
+        "Rows are a product decision — how much licence each account pays. Columns are a market decision — what a dollar of that revenue is worth. Other layers held at base multiples.",
+        tbl(mults.map(function (m) { return x_(m, 0) + " on SaaS"; }), gr, "Licence scalar"));
   }
 
-  function targetOnly(prior) {
-    checks((prior || []).concat([{ t: "ok", m: t("pTargetsOnly")(P.stagedTargets.length) }]));
-    q("btnPerfCommit").disabled = false;
-    table(q("ptblPreview"),
-      [t("pPeriodCol"), t("pRevenue"), t("pCustomers"), t("pUsers")],
-      P.stagedTargets.map(x => [mlabel(x.period), vnd(x.target_revenue),
-        int(x.target_customers), int(x.target_users)]), [1, 2, 3]);
+  function viewFunds() {
+    var groups = [
+      ["Technology, AI and data", 300000, [
+        ["Core intelligent engine and data pipeline", 140000, "Drives the automation curve behind every headcount figure."],
+        ["Spend intelligence and benchmarking", 90000, "Underwrites the platform licence, the contracted recurring line."],
+        ["Data infrastructure and observability", 45000, "Holds cost-to-serve on its declining path."],
+        ["Security, eKYC and bank integration", 25000, "Precondition for the partner channel that supplies most new accounts."]
+      ]],
+      ["United States entry, phase 1", 500000, [
+        ["Entity, legal, tax and compliance", 80000, "Gate on any US revenue being recognised from FY2027."],
+        ["Country lead and two enterprise sellers", 240000, "The US leadership base carried regardless of account count."],
+        ["Localisation, SOC 2 readiness, payment rails", 110000, "Supports the US revenue per account assumption."],
+        ["Design-partner cohort acquisition", 70000, "The first " + f(BASE.usAcct[2], 0) + " US accounts."]
+      ]],
+      ["Domestic commercial expansion", 200000, [
+        ["Selling and farming team ramp", 95000, "Takes quota-carrying sellers from 5 to " + f(R.hunters[5], 0) + " by FY2030."],
+        ["Customer success and account management ramp", 60000, "Serves the account base at the tier capacity ratios."],
+        ["Enablement, tooling and incentive pool", 45000, "Supports accounts closed per seller per year."]
+      ]]
+    ];
+    var total = 1000000, body = "";
+    groups.forEach(function (g) {
+      body += '<tr class="tot"><td>' + g[0] + '</td><td class="num">' + d$(g[1]) + '</td><td class="num">' + pc(g[1] / total) + "</td><td></td></tr>";
+      g[2].forEach(function (l) {
+        body += '<tr><td class="sub">' + l[0] + '</td><td class="num">' + d$(l[1]) + '</td><td class="num">' + pc(l[1] / total) +
+          '</td><td style="text-align:left;font-size:11.5px;color:var(--ink-3)">' + l[2] + "</td></tr>";
+      });
+    });
+    body += '<tr class="tot"><td>Total round</td><td class="num">' + d$(total) + '</td><td class="num">100%</td><td></td></tr>';
+
+    var extra = U.round > 1.0 ?
+      '<div class="cnote" style="margin-top:12px">Drivers are currently set to a $' + f(U.round, 1) +
+      "m round. Above the $1m core plan the model adds " + f((U.round - 1) * 250, 0) +
+      " US accounts by FY2030 and lifts the automation ceiling by " + f((U.round - 1), 1) +
+      " points, taking FY2030 revenue to " + m$(R.rev[5]) + " and enterprise value to " + m$(R.ev[5], 0) + "." +
+      "</div>" : "";
+
+    var risks = [
+      ["The capacity multiplier", "watch", "One assumption governs how far each commercial head stretches. Halving it roughly doubles the FY2030 headcount requirement and removes most of the leverage claim."],
+      ["Embedded finance", "watch", m$(R.L4[5]) + " of FY2030 revenue rests on bank rails and data rights not contracted today. Excluding it entirely leaves revenue at " + m$(R.rev[5] - R.L4[5]) + " and still profitable."],
+      ["Account concentration", "high", "Live top-tier travel volumes span two orders of magnitude. Losing one anchor account moves FY2027 revenue more than any driver above."],
+      ["The balance sheet", "critical", "FY2025 closes with negative equity of VND 13.7bn and VND 35.1bn of short-term debt. This model covers operating performance only."]
+    ];
+    var rh = risks.map(function (r) {
+      return '<tr><td><span class="pill st ' + r[1] + '">' + r[0] + '</span></td><td style="text-align:left;font-size:12.5px;color:var(--ink-2)">' + r[2] + "</td></tr>";
+    }).join("");
+
+    return card("Capital", "Use of funds — $1,000,000",
+        "Each line is mapped to the driver it moves, so the allocation traces to an outcome rather than a category.",
+        '<table><thead><tr><th>Allocation</th><th>Amount</th><th>Share</th><th style="text-align:left">What it funds</th></tr></thead><tbody>' +
+        body + "</tbody></table>" + extra) +
+      card("Diligence", "What to test first", "Stated here rather than left to be found.",
+        '<table><thead><tr><th>Area</th><th style="text-align:left">Why it matters</th></tr></thead><tbody>' + rh + "</tbody></table>");
   }
 
-  function checks(listItems) {
-    q("perfPreview").classList.remove("d-none");
-    q("perfChecks").innerHTML = listItems.map(c => `<li class="chk-${c.t}">${c.m}</li>`).join("");
-  }
+  /* ---------- orchestration ---------- */
+  var VIEWS = { ov: viewOverview, cu: viewCustomers, rm: viewRevMargin, pa: viewPeopleAi, vl: viewValuation, uf: viewFunds };
+  var active = "ov";
 
-  function cancel() {
-    P.staged = null; P.stagedTargets = null;
-    q("perfPreview").classList.add("d-none");
-    q("perfFile").value = "";
-  }
-
-  async function commit() {
-    if (!P.sb) return say(t("pNeedSupabase"), "warn");
-    if (!P.staged && !P.stagedTargets) return say(t("pNoValidRows"), "err");
-    const btn = q("btnPerfCommit"); btn.disabled = true;
-    try {
-      const recs = (P.staged && P.staged.recs) || [];
-      let uploadId = null;
-      if (recs.length) {
-        const { data: up, error: e1 } = await P.sb.from("uploads")
-          .insert({ filename: P.staged.filename, row_count: recs.length,
-                    uploaded_by: "dashboard", note: "Tải lên từ giao diện" })
-          .select().single();
-        if (e1) throw e1;
-        uploadId = up.id;
-        const { error: e2 } = await P.sb.from("monthly_actual")
-          .upsert(recs.map(r => Object.assign({}, r, { upload_id: uploadId })), { onConflict: "period" });
-        if (e2) throw e2;
+  function render() {
+    R = compute(U);
+    renderBanner();
+    renderKpis();
+    DRV.forEach(function (d) {
+      var lab = el("d-" + d[0]);
+      if (lab && lab.previousElementSibling) lab.previousElementSibling.querySelector("b").textContent = d[5](U[d[0]]);
+    });
+    el("fmTie").innerHTML = "FY2026 revenue tie-out " + d$(R.tie2026) + " on " + m$(BASE.pack2026Rev / 25500) +
+      " &nbsp;·&nbsp; " + pc(R.tie2026 / (BASE.pack2026Rev / 25500), 2);
+    Object.keys(VIEWS).forEach(function (k) {
+      var host = el("v-" + k);
+      if (!host) return;
+      if (k === active) {
+        try { host.innerHTML = VIEWS[k](); }
+        catch (e) { host.innerHTML = '<div class="card"><div class="empty">This view could not be built from the current settings.</div></div>'; }
       }
-      if (P.stagedTargets && P.stagedTargets.length) {
-        const { error: e3 } = await P.sb.from("monthly_target")
-          .upsert(P.stagedTargets, { onConflict: "period" });
-        if (e3) throw e3;
-      }
-      say(t("pCommitted")(recs.length, P.stagedTargets ? P.stagedTargets.length : 0), "ok");
-      cancel();
-      load();
-    } catch (err) {
-      say(t("pCommitFail")(err.message || err), "err");
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  /* ==========================================================================
-     8. SỰ KIỆN
-     ========================================================================== */
-  let bound = false;
-  function bindPick() {
-    const p = q("perfPick");
-    if (p) p.addEventListener("click", () => q("perfFile").click());
-  }
-
-  function bindOnce() {
-    if (bound) return; bound = true;
-
-    q("dropMain").innerHTML = t("pDropMain");
-    bindPick();
-
-    q("perfTabs").addEventListener("click", e => {
-      const b = e.target.closest(".tab[data-ptab]");
-      if (b) switchPtab(b.dataset.ptab);
     });
-
-    q("perfPeriod").addEventListener("change", () => { renderExec(); renderRails(); });
-
-    const drop = q("perfDrop");
-    ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => {
-      e.preventDefault(); drop.classList.add("is-over");
-    }));
-    ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => {
-      e.preventDefault(); drop.classList.remove("is-over");
-    }));
-    drop.addEventListener("drop", e => {
-      const f = e.dataTransfer.files[0]; if (f) readFile(f);
-    });
-    q("perfFile").addEventListener("change", e => {
-      if (e.target.files[0]) readFile(e.target.files[0]);
-    });
-
-    q("btnPerfCancel").addEventListener("click", cancel);
-    q("btnPerfCommit").addEventListener("click", commit);
-    q("btnSaveTargets").addEventListener("click", saveTargets);
-    q("btnTemplate").addEventListener("click", () =>
-      window.open("Xperise_Metrics_Template.xlsx", "_blank"));
-
+    el("fmFoot").innerHTML = "FY2025 is audited and reproduces the statutory accounts. FY2026 is calibrated to figures already issued and " +
+      "reproduces total revenue to within " + pc(Math.abs(R.tie2026) / (BASE.pack2026Rev / 25500), 2) +
+      ". FY2027 onward is driver-based and moves with the controls above. USD throughout; VND converted at 25,500. " +
+      "No cash-flow statement, working-capital forecast or financing schedule is included.";
   }
 
-  function switchPtab(tab) {
-    P.ptab = tab;
-    document.querySelectorAll("#perfTabs .tab[data-ptab]").forEach(b =>
-      b.classList.toggle("is-active", b.dataset.ptab === tab));
-    document.querySelectorAll(".pview").forEach(v =>
-      v.classList.toggle("is-active", v.id === "pview-" + tab));
-    // Chart.js cần đo lại khung sau khi khung được hiện ra
-    Object.keys(P.charts).forEach(k => { try { P.charts[k].resize(); } catch (e) {} });
+  function switchView(v) {
+    active = v;
+    Array.prototype.forEach.call(document.querySelectorAll("#fmTabs button"), function (b) {
+      b.classList.toggle("on", b.dataset.v === v);
+    });
+    Object.keys(VIEWS).forEach(function (k) {
+      var host = el("v-" + k);
+      if (host) host.classList.toggle("on", k === v);
+    });
+    render();
   }
 
-  return { init, load, enter, relabel, STREAMS };
+  function fmBoot() {
+    R = compute(U);
+    renderDrivers();
+    render();
+    Array.prototype.forEach.call(document.querySelectorAll("#fmTabs button"), function (b) {
+      b.addEventListener("click", function () { switchView(b.dataset.v); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#fmScn button"), function (b) {
+      b.addEventListener("click", function () {
+        U.scenario = b.dataset.s;
+        Array.prototype.forEach.call(document.querySelectorAll("#fmScn button"), function (o) { o.classList.toggle("on", o === b); });
+        render();
+      });
+    });
+    el("fmReset").addEventListener("click", function () {
+      U = Object.assign({}, DEFAULTS, { scenario: U.scenario });
+      renderDrivers();
+      render();
+    });
+    el("fmPrint").addEventListener("click", function () { window.print(); });
+  }
+
+  /* ---- giao diện mà app.js gọi ---- */
+  function init(_sb) { /* mô hình tự tính, không cần Supabase */ }
+
+  function enter() {
+    if (started) return;
+    started = true;
+    fmBoot();
+  }
+
+  function load() {
+    if (!started) { enter(); return Promise.resolve(); }
+    R = compute(U);
+    renderDrivers();
+    render();
+    return Promise.resolve();
+  }
+
+  /* Mô hình hiển thị bằng tiếng Anh (thuật ngữ tài chính chuẩn), nên đổi
+     ngôn ngữ chỉ cần vẽ lại, không phải dịch lại. */
+  function relabel() { if (started) render(); }
+
+  return { init, load, enter, relabel,
+           _model: { compute: compute, defaults: function(){ return Object.assign({}, DEFAULTS); }, years: YRS } };
 })();
